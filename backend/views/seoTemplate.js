@@ -94,7 +94,7 @@ function seoTemplate({
   </head>
   <body>
     ${bodyScriptsRaw}
-    <div id="root">${appHtml || ""}</div>
+    <div id="root"><div style="display: none;">${appHtml || ""}</div></div>
     <noscript>
       <p>This website requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
     </noscript>

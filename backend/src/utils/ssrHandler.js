@@ -155,11 +155,13 @@ async function findSeoPage(normalizedPath, firstSegment) {
 
 // --- Extract SEO data from various content types ---
 function extractSeoFromContent(data, prefix, slug) {
+  const formattedSlug = (data.slug || slug || "").toString().replace(/\s+/g, "-");
+  const path = prefix ? `/${prefix}/${formattedSlug}` : `/${formattedSlug}`;
   return {
     title: data.titleMetaTag || data.metaTitle || data.titleTag || data.title || data.pageName || data.name || "",
     description: data.metaDescription || data.summary || data.description || data.reportDescription || "",
     keywords: data.keywords || (Array.isArray(data.metaKeywords) ? data.metaKeywords.join(", ") : data.metaKeywords) || "",
-    canonical: data.canonical || data.canonicalUrl || `${SITE_URL}/${prefix}/${(data.slug || slug).toString().replace(/\s+/g, "-")}`,
+    canonical: data.canonical || data.canonicalUrl || `${SITE_URL}${path}`,
     image: toAbsoluteImageUrl(data.image || data.mainImage || data.heroImage?.url || data.coverImage?.url || data.featuredImage || data.ogImage || ""),
     ogTitle: data.ogTitle || data.titleMetaTag || data.metaTitle || data.titleTag || data.title || "",
     ogDescription: data.ogDescription || data.metaDescription || data.summary || data.reportDescription || "",
@@ -407,7 +409,7 @@ export const ssrHandler = async (req, res, next) => {
       const content = await findContentBySlug(firstSegment);
       if (content) {
         const { type, data } = content;
-        seoData = extractSeoFromContent(data, firstSegment, firstSegment);
+        seoData = extractSeoFromContent(data, "", firstSegment);
 
         if (type === "report") {
           appHtml = renderReportDetail(data);
