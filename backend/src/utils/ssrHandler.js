@@ -386,7 +386,9 @@ export const ssrHandler = async (req, res, next) => {
       if (firstSegment === "contact-us") {
         schemas.push(localBusinessSchema(), contactPageSchema());
       }
-
+      if (firstSegment === "contact-us") {
+        schemas.push(localBusinessSchema(), contactPageSchema());
+      }
 
     } else if (pageType === "action-page") {
       seoData.robots = "noindex, nofollow";
@@ -443,24 +445,15 @@ export const ssrHandler = async (req, res, next) => {
     setCacheHeaders(res, pageType);
 
    // Path to the client build's index.html
-    // 1. Environment variable (production)
-    // 2. Relative to backend/src/utils: ../../../dist (project root dist/)
-    // 3. Legacy paths for backwards compatibility
-    const relativeToBackend = path.resolve(__dirname, "../../../dist");
+    // Prioritize environment variable for Production flexibility
     const localDist = path.resolve(__dirname, "../../../../bizwit_code-main/dist");
     const remoteDist = path.resolve(__dirname, "../../../../bizwit_code/dist");
 
-    let frontendDistPath;
-    if (process.env.FRONTEND_DIST_PATH) {
-      frontendDistPath = path.resolve(process.env.FRONTEND_DIST_PATH);
-    } else if (fs.existsSync(relativeToBackend)) {
-      frontendDistPath = relativeToBackend;
-    } else if (fs.existsSync(remoteDist)) {
-      frontendDistPath = remoteDist;
-    } else {
-      frontendDistPath = localDist;
-    }
-    console.log(`📂 SSR using frontend dist: ${frontendDistPath}`);
+    // Prioritize environment variable for Production flexibility
+    const frontendDistPath = process.env.FRONTEND_DIST_PATH
+      ? path.resolve(process.env.FRONTEND_DIST_PATH)
+      : (fs.existsSync(remoteDist) ? remoteDist : localDist);
+    console.log(frontendDistPath, 'frontendDistPath');
 
     const indexPath = path.join(frontendDistPath, "index.html");
     console.log(indexPath, 'indexPath');
