@@ -31,7 +31,7 @@ function seoTemplate({
 
   const safeTitle = title || "Bizwit Research - Market Research & Business Intelligence";
   const safeDescription = description || "Leading provider of market research reports, industry analysis, and business intelligence solutions.";
-  const safeImage = image || ogImage || "https://www.bizwitresearch.com/assets/logo.png";
+  const safeImage = image || ogImage || "https://www.bizwitresearch.com/logo.png";
   const safeUrl = canonical || "https://www.bizwitresearch.com";
   const safeAuthor = author || "Bizwit Research";
   const safePublisher = publisher || "Bizwit Research & Consulting LLP";
@@ -94,7 +94,7 @@ function seoTemplate({
   </head>
   <body>
     ${bodyScriptsRaw}
-    <div id="root"><div style="display: none;">${appHtml || ""}</div></div>
+    <div id="root">${appHtml || ""}</div>
     <noscript>
       <p>This website requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
     </noscript>

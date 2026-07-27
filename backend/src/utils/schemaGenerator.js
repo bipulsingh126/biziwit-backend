@@ -4,7 +4,7 @@
  */
 
 const SITE_URL = 'https://www.bizwitresearch.com';
-const LOGO_URL = `${SITE_URL}/assets/logo.png`;
+const LOGO_URL = `${SITE_URL}/logo.png`;
 const ORG_NAME = 'Bizwit Research & Consulting LLP';
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || 'https://api.bizwitresearch.com').replace(/\/$/, '');
 
