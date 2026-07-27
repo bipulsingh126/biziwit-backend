@@ -444,9 +444,9 @@ export const ssrHandler = async (req, res, next) => {
 
    // Path to the client build's index.html
     // 1. Environment variable (production)
-    // 2. Relative to backend root: ../frontend/dist (matches app.js static serving)
+    // 2. Relative to backend/src/utils: ../../../dist (project root dist/)
     // 3. Legacy paths for backwards compatibility
-    const relativeToBackend = path.resolve(__dirname, "../../../frontend/dist");
+    const relativeToBackend = path.resolve(__dirname, "../../../dist");
     const localDist = path.resolve(__dirname, "../../../../bizwit_code-main/dist");
     const remoteDist = path.resolve(__dirname, "../../../../bizwit_code/dist");
 

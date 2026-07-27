@@ -423,8 +423,8 @@ app.use('/share', socialShareRoutes)
 // Serve static files from frontend build (CSS, JS, Images)
 // This must be BEFORE the SSR catch-all
 // Production Path: /var/www/bizwit_code/dist (if configured)
-// Local Path: ../frontend/dist
-const frontendDistPath = path.join(__dirname, '../frontend/dist');
+// Local Path: ../dist (Vite builds to project root dist/)
+const frontendDistPath = path.join(__dirname, '../dist');
 console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
 
 if (fs.existsSync(frontendDistPath)) {
