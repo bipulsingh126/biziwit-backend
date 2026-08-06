@@ -62,7 +62,7 @@ function seoTemplate({
 
     <!-- Main Stylesheets (Placed BEFORE preconnects, meta tags, and scripts for immediate render-blocking priority) -->
     ${(cssFiles || [])
-      .map((css) => `<link rel="preload" href="${css}" as="style">\n    <link rel="stylesheet" crossorigin href="${css}">`)
+      .map((css) => `<link rel="preload" href="${css}" as="style">\n    <link rel="stylesheet" href="${css}">`)
       .join("\n    ")}
 
     <!-- DNS Prefetch & Preconnect for performance -->
