@@ -49,6 +49,22 @@ function seoTemplate({
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.png" />
     
+    <!-- Critical Above-the-Fold Inline Styles (Eliminates FOUC) -->
+    <style id="critical-css">
+      *, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; font-size: 16px; -webkit-font-smoothing: antialiased; }
+      body { margin: 0; padding: 0; font-family: 'Work Sans', system-ui, -apple-system, sans-serif; line-height: 1.5; color: #1f2937; background-color: #ffffff; overflow-x: hidden; }
+      #root { margin: 0; padding: 0; min-height: 100vh; }
+      a { color: inherit; text-decoration: none; }
+      img, video { max-width: 100%; height: auto; display: block; }
+      .container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+    </style>
+
+    <!-- Main Stylesheets (Placed BEFORE preconnects, meta tags, and scripts for immediate render-blocking priority) -->
+    ${(cssFiles || [])
+      .map((css) => `<link rel="preload" href="${css}" as="style">\n    <link rel="stylesheet" crossorigin href="${css}">`)
+      .join("\n    ")}
+
     <!-- DNS Prefetch & Preconnect for performance -->
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
     <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
@@ -80,14 +96,14 @@ function seoTemplate({
     <meta property="twitter:description" content="${escMeta(twitterDescription || ogDescription || safeDescription)}" />
     ${(twitterImage || safeImage) ? `<meta property="twitter:image" content="${escMeta(twitterImage || safeImage)}" />` : ""}
 
+    <!-- Preload JS Modules -->
+    ${(jsFiles || [])
+      .map((js) => `<link rel="modulepreload" href="${js}">`)
+      .join("\n    ")}
+
     <!-- JSON-LD Schema Markup -->
     ${schemaMarkup || ""}
 
-    <!-- Injected Styles -->
-    ${cssFiles
-      .map((css) => `<link rel="stylesheet" crossorigin href="${css}">`)
-      .join("\n    ")}
-    
     <!-- User Scripts -->
     ${headScriptsRaw}
     
@@ -100,7 +116,7 @@ function seoTemplate({
     </noscript>
     
     <!-- Injected Scripts -->
-    ${jsFiles
+    ${(jsFiles || [])
       .map((js) => `<script type="module" crossorigin src="${js}"></script>`)
       .join("\n    ")}
   </body>

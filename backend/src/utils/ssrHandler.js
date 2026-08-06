@@ -33,6 +33,46 @@ const __dirname = path.dirname(__filename);
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
 const SITE_URL = "https://www.bizwitresearch.com";
 
+let assetCache = {
+  mtime: 0,
+  cssFiles: [],
+  jsFiles: [],
+};
+
+function getExtractedAssets(indexPath) {
+  try {
+    const stats = fs.statSync(indexPath);
+    if (assetCache.mtime === stats.mtimeMs) {
+      return { cssFiles: assetCache.cssFiles, jsFiles: assetCache.jsFiles };
+    }
+
+    const indexHtml = fs.readFileSync(indexPath, "utf-8");
+    const cssMatches = indexHtml.match(/href\s*=\s*["'](\/assets\/[^"']+\.css)["']/g) || [];
+    const jsMatches = indexHtml.match(/src\s*=\s*["'](\/assets\/[^"']+\.js)["']/g) || [];
+
+    const cssFiles = cssMatches.map(m => {
+      const match = m.match(/href\s*=\s*["']([^"']+)["']/);
+      return match ? match[1] : null;
+    }).filter(Boolean);
+
+    const jsFiles = jsMatches.map(m => {
+      const match = m.match(/src\s*=\s*["']([^"']+)["']/);
+      return match ? match[1] : null;
+    }).filter(Boolean);
+
+    assetCache = {
+      mtime: stats.mtimeMs,
+      cssFiles,
+      jsFiles,
+    };
+
+    return { cssFiles, jsFiles };
+  } catch (err) {
+    console.error("Asset extraction error:", err);
+    return { cssFiles: [], jsFiles: [] };
+  }
+}
+
 const toAbsoluteImageUrl = (img) => {
   if (!img || typeof img !== "string") return "";
   if (/^https?:\/\//i.test(img)) return img;
@@ -444,19 +484,20 @@ export const ssrHandler = async (req, res, next) => {
     // --- Set cache headers ---
     setCacheHeaders(res, pageType);
 
-   // Path to the client build's index.html
+    // Path to the client build's index.html
     // Prioritize environment variable for Production flexibility
     const localDist = path.resolve(__dirname, "../../../../bizwit_code-main/dist");
     const remoteDist = path.resolve(__dirname, "../../../../bizwit_code/dist");
 
-    // Prioritize environment variable for Production flexibility
     const frontendDistPath = process.env.FRONTEND_DIST_PATH
       ? path.resolve(process.env.FRONTEND_DIST_PATH)
-      : (fs.existsSync(remoteDist) ? remoteDist : localDist);
-    console.log(frontendDistPath, 'frontendDistPath');
+      : (fs.existsSync(workspaceDist)
+          ? workspaceDist
+          : (fs.existsSync(projectDist)
+              ? projectDist
+              : remoteDist));
 
     const indexPath = path.join(frontendDistPath, "index.html");
-    console.log(indexPath, 'indexPath');
 
     if (!fs.existsSync(indexPath)) {
       console.error(
@@ -465,20 +506,7 @@ export const ssrHandler = async (req, res, next) => {
       return res.status(500).send("Server Error: Frontend build not found.");
     }
 
-    const indexHtml = fs.readFileSync(indexPath, "utf-8");
-    // Improved regex to find assets with flexible spacing and quotes
-    const cssMatches = indexHtml.match(/href\s*=\s*["'](\/assets\/[^"']+\.css)["']/g) || [];
-    const jsMatches = indexHtml.match(/src\s*=\s*["'](\/assets\/[^"']+\.js)["']/g) || [];
-    
-    const cssFiles = cssMatches.map(m => {
-      const match = m.match(/href\s*=\s*["']([^"']+)["']/);
-      return match ? match[1] : null;
-    }).filter(Boolean);
-    
-    const jsFiles = jsMatches.map(m => {
-      const match = m.match(/src\s*=\s*["']([^"']+)["']/);
-      return match ? match[1] : null;
-    }).filter(Boolean);
+    const { cssFiles, jsFiles } = getExtractedAssets(indexPath);
 
     const schemaMarkup = generateSchemaScripts(schemas);
 
