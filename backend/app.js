@@ -7,7 +7,7 @@ import morgan from 'morgan'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { connectDB } from './src/config/db.js'
-import { ssrHandler } from './src/utils/ssrHandler.js'
+import { ssrHandler, getFrontendDistPath } from './src/utils/ssrHandler.js'
 import { generateSitemap } from './src/utils/sitemapGenerator.js'
 import customReportRoutes from './src/routes/customReports.js'
 import megatrendSubmissionRoutes from './src/routes/megatrendSubmissions.js'
@@ -421,10 +421,8 @@ app.use('/share', socialShareRoutes)
 // --- SSR & Frontend Static Files ---
 
 // Serve static files from frontend build (CSS, JS, Images)
-// This must be BEFORE the SSR catch-all
-// Production Path: /var/www/bizwit_code/dist (if configured)
-// Local Path: ../dist (Vite builds to project root dist/)
-const frontendDistPath = path.join(__dirname, '../frontend/dist');
+// Dynamically resolved to match SSR Handler
+const frontendDistPath = getFrontendDistPath();
 console.log(`📂 Serving frontend static files from: ${frontendDistPath}`);
 
 if (fs.existsSync(frontendDistPath)) {

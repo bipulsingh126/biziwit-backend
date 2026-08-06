@@ -30,10 +30,35 @@ import { setCacheHeaders } from "./cacheControl.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export function getFrontendDistPath() {
+  const candidateDistPaths = [
+    process.env.FRONTEND_DIST_PATH && path.resolve(process.env.FRONTEND_DIST_PATH),
+    path.resolve(__dirname, "../../../frontend/dist"),
+    path.resolve(__dirname, "../../frontend/dist"),
+    path.resolve(__dirname, "../../../../bizwit_code-main/dist"),
+    path.resolve(__dirname, "../../../../bizwit_code/dist"),
+    path.resolve(process.cwd(), "frontend/dist"),
+    path.resolve(process.cwd(), "../frontend/dist"),
+    path.resolve(process.cwd(), "dist"),
+    path.resolve(process.cwd(), "../dist"),
+  ].filter(Boolean);
+
+  const matchedPath = candidateDistPaths.find((p) =>
+    fs.existsSync(path.join(p, "index.html"))
+  );
+
+  if (matchedPath) {
+    return matchedPath;
+  }
+
+  return candidateDistPaths[0] || path.resolve(__dirname, "../../../frontend/dist");
+}
+
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
 const SITE_URL = "https://www.bizwitresearch.com";
 
 let assetCache = {
+  indexPath: "",
   mtime: 0,
   cssFiles: [],
   jsFiles: [],
@@ -42,25 +67,40 @@ let assetCache = {
 function getExtractedAssets(indexPath) {
   try {
     const stats = fs.statSync(indexPath);
-    if (assetCache.mtime === stats.mtimeMs) {
+    if (assetCache.indexPath === indexPath && assetCache.mtime === stats.mtimeMs) {
       return { cssFiles: assetCache.cssFiles, jsFiles: assetCache.jsFiles };
     }
 
     const indexHtml = fs.readFileSync(indexPath, "utf-8");
-    const cssMatches = indexHtml.match(/href\s*=\s*["'](\/assets\/[^"']+\.css)["']/g) || [];
-    const jsMatches = indexHtml.match(/src\s*=\s*["'](\/assets\/[^"']+\.js)["']/g) || [];
 
-    const cssFiles = cssMatches.map(m => {
-      const match = m.match(/href\s*=\s*["']([^"']+)["']/);
-      return match ? match[1] : null;
-    }).filter(Boolean);
+    const cssFiles = [];
+    const jsFiles = [];
 
-    const jsFiles = jsMatches.map(m => {
-      const match = m.match(/src\s*=\s*["']([^"']+)["']/);
-      return match ? match[1] : null;
-    }).filter(Boolean);
+    const cssRegex = /href=["']([^"']+\.css(?:\?[^"']*)?)["']/gi;
+    let match;
+    while ((match = cssRegex.exec(indexHtml)) !== null) {
+      let href = match[1];
+      if (!href.startsWith("/") && !href.startsWith("http")) {
+        href = "/" + href;
+      }
+      if (!cssFiles.includes(href)) {
+        cssFiles.push(href);
+      }
+    }
+
+    const jsRegex = /src=["']([^"']+\.js(?:\?[^"']*)?)["']/gi;
+    while ((match = jsRegex.exec(indexHtml)) !== null) {
+      let src = match[1];
+      if (!src.startsWith("/") && !src.startsWith("http")) {
+        src = "/" + src;
+      }
+      if (!jsFiles.includes(src)) {
+        jsFiles.push(src);
+      }
+    }
 
     assetCache = {
+      indexPath,
       mtime: stats.mtimeMs,
       cssFiles,
       jsFiles,
@@ -426,9 +466,6 @@ export const ssrHandler = async (req, res, next) => {
       if (firstSegment === "contact-us") {
         schemas.push(localBusinessSchema(), contactPageSchema());
       }
-      if (firstSegment === "contact-us") {
-        schemas.push(localBusinessSchema(), contactPageSchema());
-      }
 
     } else if (pageType === "action-page") {
       seoData.robots = "noindex, nofollow";
@@ -484,24 +521,13 @@ export const ssrHandler = async (req, res, next) => {
     // --- Set cache headers ---
     setCacheHeaders(res, pageType);
 
-    // Path to the client build's index.html
-    // Prioritize environment variable for Production flexibility
-    const localDist = path.resolve(__dirname, "../../../../bizwit_code-main/dist");
-    const remoteDist = path.resolve(__dirname, "../../../../bizwit_code/dist");
-
-    const frontendDistPath = process.env.FRONTEND_DIST_PATH
-      ? path.resolve(process.env.FRONTEND_DIST_PATH)
-      : (fs.existsSync(workspaceDist)
-          ? workspaceDist
-          : (fs.existsSync(projectDist)
-              ? projectDist
-              : remoteDist));
-
+    // Dynamic resolution of frontend dist path
+    const frontendDistPath = getFrontendDistPath();
     const indexPath = path.join(frontendDistPath, "index.html");
 
     if (!fs.existsSync(indexPath)) {
       console.error(
-        "SSR Error: frontend/dist/index.html not found. Have you built the frontend?",
+        `SSR Error: frontend dist index.html not found at "${indexPath}". Have you built the frontend?`,
       );
       return res.status(500).send("Server Error: Frontend build not found.");
     }
