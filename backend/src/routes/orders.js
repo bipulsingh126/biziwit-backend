@@ -6,9 +6,6 @@ import { authenticate, requireRole } from '../middleware/auth.js'
 
 const router = Router()
 
-// Auth: allow admin/editor
-router.use(authenticate, requireRole('super_admin', 'admin', 'editor'))
-
 // Stripe init (optional if not configured)
 const stripeSecret = process.env.STRIPE_SECRET_KEY || ''
 const stripe = stripeSecret ? new Stripe(stripeSecret) : null
@@ -147,8 +144,11 @@ router.post('/:id/paypal/capture', async (req, res, next) => {
   } catch (e) { next(e) }
 })
 
+// Admin routes below: require authentication & roles
+router.use(authenticate, requireRole('super_admin', 'admin', 'editor'))
+
 // Admin: list orders
-router.get('/', requireRole('admin'), async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { q = '', status, limit = 50, offset = 0 } = req.query
     const query = {}

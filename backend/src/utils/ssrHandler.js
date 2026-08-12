@@ -55,7 +55,7 @@ export function getFrontendDistPath() {
 }
 
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
-const SITE_URL = "https://www.bizwitresearch.com";
+const SITE_URL = "https://bizwitresearch.com";
 
 let assetCache = {
   indexPath: "",
@@ -124,12 +124,12 @@ const SERVICE_PAGES = new Set([
   "sustainability", "esg-consulting", "india-gtm-strategy",
   "voice-of-customer", "competitive-intelligence", "market-intelligence",
   "full-time-equivalent", "market-share-gain", "thought-leadership",
-  "syndicate-research-reports", "market-intelligence"
+  "syndicate-research-reports", "market-intelligence", "why-choose-us"
 ]);
 
 const STATIC_PAGES = new Set([
   "about-us", "contact-us", "career", "testall", "bizchronicles",
-  "become-our-reseller", "bizwit-insights", "why-choose-us"
+  "become-our-reseller", "bizwit-insights"
 ]);
 
 const LEGAL_PAGES = new Set([
@@ -344,6 +344,8 @@ export const ssrHandler = async (req, res, next) => {
       } else {
         const seoPage = await findSeoPage(normalizedPath, firstSegment);
         if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
+        else { seoData.title = "Report Not Found | Bizwit Research"; seoData.canonical = `${SITE_URL}${normalizedPath}`; }
+        appHtml = renderStaticPage({ title: seoData.title || "Report Not Found", description: seoData.description });
       }
 
     } else if (pageType === "blog-listing") {
@@ -371,6 +373,11 @@ export const ssrHandler = async (req, res, next) => {
           articleSchema({ title: blog.title, description: blog.metaDescription, url: `/blogs/${blog.slug}`, image: blog.mainImage, author: blog.authorName, datePublished: blog.publishDate, dateModified: blog.updatedAt, content: blog.content }),
           breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Blog", url: "/blogs" }, { name: blog.title, url: `/blogs/${blog.slug}` }])
         );
+      } else {
+        const seoPage = await findSeoPage(normalizedPath, firstSegment);
+        if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
+        else { seoData.title = "Blog Post Not Found | Bizwit Research"; seoData.canonical = `${SITE_URL}${normalizedPath}`; }
+        appHtml = renderStaticPage({ title: seoData.title || "Blog Post Not Found", description: seoData.description });
       }
 
     } else if (pageType === "megatrend-listing") {
@@ -394,6 +401,11 @@ export const ssrHandler = async (req, res, next) => {
           articleSchema({ title: mt.title, description: mt.metaDescription || mt.summary, url: `/${firstSegment}/${mt.slug}`, image: mt.heroImage?.url, author: mt.author, datePublished: mt.publishedAt, dateModified: mt.updatedAt, content: mt.content }),
           breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Megatrends", url: `/${firstSegment}` }, { name: mt.title, url: `/${firstSegment}/${mt.slug}` }])
         );
+      } else {
+        const seoPage = await findSeoPage(normalizedPath, firstSegment);
+        if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
+        else { seoData.title = "Megatrend Not Found | Bizwit Research"; seoData.canonical = `${SITE_URL}${normalizedPath}`; }
+        appHtml = renderStaticPage({ title: seoData.title || "Megatrend Not Found", description: seoData.description });
       }
 
     } else if (pageType === "casestudy-listing") {
@@ -417,6 +429,11 @@ export const ssrHandler = async (req, res, next) => {
           articleSchema({ title: cs.title, description: cs.metaDescription, url: `/${firstSegment}/${cs.slug}`, image: cs.mainImage, datePublished: cs.createdAt, dateModified: cs.updatedAt, content: cs.content }),
           breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Case Studies", url: `/${firstSegment}` }, { name: cs.title, url: `/${firstSegment}/${cs.slug}` }])
         );
+      } else {
+        const seoPage = await findSeoPage(normalizedPath, firstSegment);
+        if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
+        else { seoData.title = "Case Study Not Found | Bizwit Research"; seoData.canonical = `${SITE_URL}${normalizedPath}`; }
+        appHtml = renderStaticPage({ title: seoData.title || "Case Study Not Found", description: seoData.description });
       }
 
     } else if (pageType === "service-page") {
@@ -504,6 +521,9 @@ export const ssrHandler = async (req, res, next) => {
           appHtml = renderStaticPage({ title: seoData.title, description: seoData.description });
           schemas.push(webPageSchema({ title: seoData.title, description: seoData.description, url: normalizedPath }));
         }
+        
+        // Add breadcrumb schema for universal-detail
+        schemas.push(breadcrumbSchema([{ name: "Home", url: "/" }, { name: data.title || seoData.title, url: normalizedPath }]));
       } else {
         // Final fallback: SEO page lookup
         const seoPage = await findSeoPage(normalizedPath, firstSegment);

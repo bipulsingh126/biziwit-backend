@@ -1,8 +1,4 @@
-/**
- * Content Pre-Renderer for SEO
- * Generates semantic HTML from database content so Google can index it.
- * React replaces this content when it mounts on the client.
- */
+import sanitizeHtml from 'sanitize-html';
 
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || 'https://api.bizwitresearch.com').replace(/\/$/, '');
 
@@ -13,7 +9,39 @@ function esc(text) {
 
 function strip(html) {
   if (!html) return '';
-  return String(html).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  let text = String(html);
+  // remove script/style blocks entirely (content and tags)
+  text = text.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  // convert block-level closing tags to line breaks so structure survives
+  text = text.replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, '\n');
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  // strip remaining tags
+  text = text.replace(/<[^>]*>/g, '');
+  text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+  // collapse excess blank lines/spaces but keep paragraph breaks
+  text = text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return text;
+}
+
+export function renderRichContent(html) {
+  if (!html) return '';
+  return sanitizeHtml(html, {
+    allowedTags: [
+      'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
+      'strong', 'em', 'b', 'i', 'a', 'br', 'img', 'div', 'span', 'blockquote', 'section'
+    ],
+    allowedAttributes: {
+      a: ['href', 'title', 'target', 'rel'],
+      img: ['src', 'alt', 'title', 'loading', 'width', 'height'],
+      table: ['class'],
+      td: ['colspan', 'rowspan'],
+      th: ['colspan', 'rowspan'],
+    },
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'nofollow' }, false)
+    }
+  });
 }
 
 function truncate(text, max = 300) {
@@ -116,7 +144,7 @@ export function renderReportDetail(report) {
   }
 
   if (report.content) {
-    html += `<section><h2>Report Details</h2><div>${strip(report.content).substring(0, 2000)}</div></section>`;
+    html += `<section><h2>Report Details</h2><div>${renderRichContent(report.content)}</div></section>`;
   }
 
   html += `<nav><a href="/report-store/${esc(report.slug)}/download-sample">Request Sample</a> | `;
@@ -153,7 +181,7 @@ export function renderBlogDetail(blog) {
   html += `</header>`;
   if (blog.mainImage) html += `<img src="${esc(imgUrl(blog.mainImage))}" alt="${esc(title)}" loading="lazy" />`;
   if (blog.content) {
-    html += `<section>${strip(blog.content).substring(0, 3000)}</section>`;
+    html += `<section>${renderRichContent(blog.content)}</section>`;
   }
   if (blog.tags?.length) {
     html += `<footer><p>Tags: ${blog.tags.map(t => esc(t)).join(', ')}</p></footer>`;
@@ -186,7 +214,7 @@ export function renderMegatrendDetail(megatrend) {
   html += `</header>`;
   if (megatrend.heroImage?.url) html += `<img src="${esc(imgUrl(megatrend.heroImage.url))}" alt="${esc(megatrend.heroImage.alt || title)}" loading="lazy" />`;
   if (megatrend.summary) html += `<section><p>${esc(strip(megatrend.summary))}</p></section>`;
-  if (megatrend.content) html += `<section>${strip(megatrend.content).substring(0, 3000)}</section>`;
+  if (megatrend.content) html += `<section>${renderRichContent(megatrend.content)}</section>`;
   html += `</article>`;
   return html;
 }
@@ -214,7 +242,7 @@ export function renderCaseStudyDetail(cs) {
   if (cs.subTitle) html += `<h2>${esc(cs.subTitle)}</h2>`;
   html += `</header>`;
   if (cs.mainImage) html += `<img src="${esc(imgUrl(cs.mainImage))}" alt="${esc(title)}" loading="lazy" />`;
-  if (cs.content) html += `<section>${strip(cs.content).substring(0, 3000)}</section>`;
+  if (cs.content) html += `<section>${renderRichContent(cs.content)}</section>`;
   html += `</article>`;
   return html;
 }

@@ -45,6 +45,13 @@ function seoTemplate({
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W7F2VQDJ');</script>
+    <!-- End Google Tag Manager -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.png" />
@@ -78,6 +85,7 @@ function seoTemplate({
     ${keywords ? `<meta name="keywords" content="${escMeta(keywords)}" />` : ""}
     ${robots ? `<meta name="robots" content="${escMeta(robots)}" />` : '<meta name="robots" content="index, follow" />'}
     ${safeUrl ? `<link rel="canonical" href="${escMeta(safeUrl)}" />` : ""}
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
     <meta name="author" content="${escMeta(safeAuthor)}" />
     <meta name="publisher" content="${escMeta(safePublisher)}" />
 
@@ -109,6 +117,10 @@ function seoTemplate({
     
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W7F2VQDJ"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
     ${bodyScriptsRaw}
     <div id="root">${appHtml || ""}</div>
     <noscript>

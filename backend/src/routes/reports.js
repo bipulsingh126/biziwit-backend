@@ -3719,12 +3719,13 @@ router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => 
       })
     }
 
-    // Import Inquiry model at the top if not already imported
+    // Import Inquiry model and email functions
     const Inquiry = (await import('../models/Inquiry.js')).default
+    const { sendNotification, sendAutoResponse } = await import('./inquiries.js')
 
     // Create inquiry record
     const inquiry = await Inquiry.create({
-      type: 'Request for Sample',
+      inquiryType: 'Request for Sample',
       name: name.trim(),
       email: email.trim(),
       phone: phone?.trim() || '',
@@ -3732,10 +3733,19 @@ router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => 
       jobTitle: jobTitle?.trim() || '',
       country: country?.trim() || '',
       message: message?.trim() || `Sample request for: ${report.title}`,
+      pageReportTitle: report.title,
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
       status: 'new'
+    })
+
+    // Send email notifications (non-blocking)
+    Promise.all([
+      sendNotification(inquiry),
+      sendAutoResponse(inquiry)
+    ]).catch(err => {
+      console.error('Email notification error:', err)
     })
 
     await trackInteraction(report._id, 'sample_request_submitted', {
@@ -4009,12 +4019,13 @@ router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
       })
     }
 
-    // Import Inquiry model
+    // Import Inquiry model and email functions
     const Inquiry = (await import('../models/Inquiry.js')).default
+    const { sendNotification, sendAutoResponse } = await import('./inquiries.js')
 
     // Create inquiry record
     const inquiry = await Inquiry.create({
-      type: inquiryType,
+      inquiryType: inquiryType || 'Inquiry Before Buying',
       name: name.trim(),
       email: email.trim(),
       phone: phone?.trim() || '',
@@ -4022,10 +4033,19 @@ router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
       jobTitle: jobTitle?.trim() || '',
       country: country?.trim() || '',
       message: message.trim(),
+      pageReportTitle: report.title,
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
       status: 'new'
+    })
+
+    // Send email notifications (non-blocking)
+    Promise.all([
+      sendNotification(inquiry),
+      sendAutoResponse(inquiry)
+    ]).catch(err => {
+      console.error('Email notification error:', err)
     })
 
     await trackInteraction(report._id, 'inquiry_submitted', {
@@ -4145,12 +4165,13 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
       })
     }
 
-    // Import Inquiry model
+    // Import Inquiry model and email functions
     const Inquiry = (await import('../models/Inquiry.js')).default
+    const { sendNotification, sendAutoResponse } = await import('./inquiries.js')
 
     // Create inquiry record for analyst consultation
     const inquiry = await Inquiry.create({
-      type: 'Talk to Analyst/Expert',
+      inquiryType: 'Talk to Analyst/Expert',
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
@@ -4158,6 +4179,7 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
       jobTitle: jobTitle?.trim() || '',
       country: country?.trim() || '',
       message: `${message?.trim() || ''}\n\nConsultation Type: ${consultationType}\nPreferred Time: ${preferredTime || 'Not specified'}`,
+      pageReportTitle: report.title,
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
@@ -4166,6 +4188,14 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
         consultationType,
         preferredTime: preferredTime || null
       }
+    })
+
+    // Send email notifications (non-blocking)
+    Promise.all([
+      sendNotification(inquiry),
+      sendAutoResponse(inquiry)
+    ]).catch(err => {
+      console.error('Email notification error:', err)
     })
 
     await trackInteraction(report._id, 'analyst_consultation_requested', {

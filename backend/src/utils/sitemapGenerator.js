@@ -1,14 +1,10 @@
-/**
- * Dynamic Sitemap Generator
- * Generates XML sitemap from static pages + database content
- */
 
 import Report from '../models/Report.js';
 import Blog from '../models/Blog.js';
 import Megatrend from '../models/Megatrend.js';
 import CaseStudy from '../models/CaseStudy.js';
 
-const SITE_URL = 'https://www.bizwitresearch.com';
+const SITE_URL = 'https://bizwitresearch.com';
 
 function urlEntry(loc, lastmod, changefreq, priority) {
   return `  <url>

@@ -46,12 +46,15 @@ const uniqueSlug = async (title, desired) => {
 function makeTransport() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } =
     process.env;
-  if (!SMTP_HOST) return null;
+  if (!SMTP_HOST || !SMTP_USER) return null;
+  const port = Number(SMTP_PORT || 465);
+  const secure = String(SMTP_SECURE || "true") === "true" || port === 465;
   return nodemailer.createTransport({
     host: SMTP_HOST,
-    port: Number(SMTP_PORT || 587),
-    secure: String(SMTP_SECURE || "false") === "true",
-    auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+    port,
+    secure,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: { rejectUnauthorized: false }
   });
 }
 
@@ -124,6 +127,10 @@ router.get("/public/:slug", async (req, res, next) => {
   }
 });
 
+// Import Inquiry model and email helpers
+import Inquiry from "../models/Inquiry.js";
+import { sendNotification, sendAutoResponse } from "./inquiries.js";
+
 // Public: submit whitepaper form and receive a short-lived token for download
 router.post("/public/:slug/whitepaper", async (req, res, next) => {
   try {
@@ -152,7 +159,24 @@ router.post("/public/:slug/whitepaper", async (req, res, next) => {
       agreed: !!agreed,
     });
 
-    notifySubmission(created).catch(() => {});
+    // Sync to main Inquiry collection for Admin -> Inquiry view and email delivery
+    const inquiryDoc = await Inquiry.create({
+      name,
+      email,
+      company,
+      subject: `White Paper Request: ${mg.title}`,
+      message: `Role: ${role || 'N/A'}. User requested whitepaper download for megatrend: ${mg.title}`,
+      inquiryType: 'Download White Paper',
+      pageReportTitle: mg.title,
+      source: 'Megatrends API'
+    }).catch((err) => console.error("Inquiry sync error in megatrends:", err));
+
+    if (inquiryDoc) {
+      sendNotification(inquiryDoc).catch(() => {});
+      sendAutoResponse(inquiryDoc).catch(() => {});
+    } else {
+      notifySubmission(created).catch(() => {});
+    }
 
     const token = jwt.sign(
       { sub: "whitepaper", mg: String(mg._id), ts: Date.now() },
