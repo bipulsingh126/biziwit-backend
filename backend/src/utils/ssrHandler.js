@@ -23,7 +23,8 @@ import {
   renderHomePage, renderReportListing, renderReportDetail,
   renderBlogListing, renderBlogDetail, renderMegatrendListing,
   renderMegatrendDetail, renderCaseStudyListing, renderCaseStudyDetail,
-  renderStaticPage, renderServicePageBySlug
+  renderStaticPage, renderServicePageBySlug,
+  renderAboutUsPage, renderContactUsPage, renderCareerPage
 } from "./contentRenderer.js";
 import { setCacheHeaders } from "./cacheControl.js";
 
@@ -581,7 +582,17 @@ export const ssrHandler = async (req, res, next) => {
       const seoPage = await findSeoPage(normalizedPath, firstSegment);
       if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
       else { seoData.title = `${firstSegment.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} | Bizwit Research`; seoData.canonical = `${SITE_URL}${normalizedPath}`; seoData.robots = "index, follow"; }
-      appHtml = renderStaticPage({ title: seoData.title, description: seoData.description });
+      
+      if (firstSegment === "about-us") {
+        appHtml = renderAboutUsPage(seoData);
+      } else if (firstSegment === "contact-us") {
+        appHtml = renderContactUsPage(seoData);
+      } else if (firstSegment === "career") {
+        appHtml = renderCareerPage(seoData);
+      } else {
+        appHtml = renderStaticPage({ title: seoData.title, description: seoData.description });
+      }
+      
       schemas.push(
         webPageSchema({ title: seoData.title, description: seoData.description, url: normalizedPath }),
         breadcrumbSchema([{ name: "Home", url: "/" }, { name: seoData.title, url: normalizedPath }])
