@@ -6,8 +6,40 @@ import slugify from 'slugify'
 import jwt from 'jsonwebtoken'
 import Megatrend from '../models/Megatrend.js'
 import MegatrendSubmission from '../models/MegatrendSubmission.js'
+import SEOPage from '../models/SEOPage.js'
+import Inquiry from '../models/Inquiry.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import { sendMail } from '../utils/mailer.js'
+import { sendNotification, sendAutoResponse } from './inquiries.js'
+
+const router = Router()
+
+// Storage config for uploads
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    const base = path.basename(file.originalname, ext)
+    const stamp = Date.now().toString(36)
+    cb(null, `${slugify(base, { lower: true, strict: true })}-${stamp}${ext}`)
+  }
+})
+const upload = multer({ storage })
+
+// Helpers
+const uniqueSlug = async (title, desired) => {
+  let slug = desired || slugify(title || 'megatrend', { lower: true, strict: true })
+  if (!slug) slug = Date.now().toString(36)
+  let i = 0
+  // ensure uniqueness
+  while (true) {
+    const exists = await Megatrend.findOne({ slug: i ? `${slug}-${i}` : slug }).lean()
+    if (!exists) return i ? `${slug}-${i}` : slug
+    i += 1
+  }
+}
 
 async function notifySubmission(sub) {
   const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
@@ -72,10 +104,6 @@ router.get("/public/:slug", async (req, res, next) => {
     next(e);
   }
 });
-
-// Import Inquiry model and email helpers
-import Inquiry from "../models/Inquiry.js";
-import { sendNotification, sendAutoResponse } from "./inquiries.js";
 
 // Public: submit whitepaper form and receive a short-lived token for download
 router.post("/public/:slug/whitepaper", async (req, res, next) => {
@@ -257,7 +285,9 @@ router.delete("/:id", async (req, res, next) => {
     const megatrend = await Megatrend.findById(req.params.id)
     const r = await Megatrend.findByIdAndDelete(req.params.id);
     if (!r) return res.status(404).json({ error: "Not found" });
-    await SEOPage.findOneAndDelete({url: megatrend.slug})
+    if (megatrend?.slug) {
+      await SEOPage.findOneAndDelete({ url: megatrend.slug }).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (e) {
     next(e);
@@ -267,6 +297,7 @@ router.delete("/:id", async (req, res, next) => {
 // Upload hero image
 router.post("/:id/hero", upload.single("file"), async (req, res, next) => {
   try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const fileUrl = `/uploads/${path.basename(req.file.path)}`;
     const updated = await Megatrend.findByIdAndUpdate(
       req.params.id,
@@ -283,6 +314,7 @@ router.post("/:id/hero", upload.single("file"), async (req, res, next) => {
 // Upload gallery image
 router.post("/:id/images", upload.single("file"), async (req, res, next) => {
   try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const fileUrl = `/uploads/${path.basename(req.file.path)}`;
     const updated = await Megatrend.findByIdAndUpdate(
       req.params.id,
@@ -302,6 +334,7 @@ router.post(
   upload.single("file"),
   async (req, res, next) => {
     try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
       const fileUrl = `/uploads/${path.basename(req.file.path)}`;
       const updated = await Megatrend.findByIdAndUpdate(
         req.params.id,
