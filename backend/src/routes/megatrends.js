@@ -7,72 +7,18 @@ import jwt from 'jsonwebtoken'
 import Megatrend from '../models/Megatrend.js'
 import MegatrendSubmission from '../models/MegatrendSubmission.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
-import nodemailer from 'nodemailer'
-
-const router = Router();
-
-// Storage config
-const UPLOAD_DIR =
-  process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const base = path.basename(file.originalname, ext);
-    const stamp = Date.now().toString(36);
-    cb(null, `${slugify(base, { lower: true, strict: true })}-${stamp}${ext}`);
-  },
-});
-const upload = multer({ storage });
-
-// Helpers
-const uniqueSlug = async (title, desired) => {
-  let slug = slugify(desired || title, { lower: true, strict: true });
-  if (!slug) slug = Date.now().toString(36);
-  let i = 0;
-  // ensure uniqueness
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    // eslint-disable-next-line no-await-in-loop
-    const exists = await Megatrend.findOne({
-      slug: i ? `${slug}-${i}` : slug,
-    }).lean();
-    if (!exists) return i ? `${slug}-${i}` : slug;
-    i += 1;
-  }
-};
-
-function makeTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } =
-    process.env;
-  if (!SMTP_HOST || !SMTP_USER) return null;
-  const port = Number(SMTP_PORT || 465);
-  const secure = String(SMTP_SECURE || "true") === "true" || port === 465;
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { rejectUnauthorized: false }
-  });
-}
+import { sendMail } from '../utils/mailer.js'
 
 async function notifySubmission(sub) {
-  const transport = makeTransport();
-  if (!transport) return;
-  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER;
-  if (!to) return;
-  const subject = `[bizwit] Whitepaper Request: ${sub.megatrendTitle}`;
-  const text = `Name: ${sub.name}\nEmail: ${sub.email}\nCompany: ${sub.company}\nRole: ${sub.role}\nMegatrend: ${sub.megatrendTitle}\nAt: ${sub.createdAt?.toISOString()}`;
-  await transport.sendMail({
-    from:
-      process.env.MAIL_FROM ||
-      `no-reply@${process.env.DOMAIN || "bizwit.local"}`,
+  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
+  const subject = `[Bizwit] Whitepaper Request: ${sub.megatrendTitle}`
+  const text = `Name: ${sub.name}\nEmail: ${sub.email}\nCompany: ${sub.company}\nRole: ${sub.role}\nMegatrend: ${sub.megatrendTitle}\nAt: ${sub.createdAt?.toISOString()}`
+  await sendMail({
     to,
     subject,
     text,
-  });
+    replyTo: sub.email,
+  })
 }
 
 // Public: list published megatrends

@@ -21,6 +21,7 @@ function seoTemplate({
   appHtml,
   cssFiles,
   jsFiles,
+  preloadJsFiles,
   author,
   schemaMarkup,
   preconnects,
@@ -107,7 +108,7 @@ function seoTemplate({
     ${(twitterImage || safeImage) ? `<meta property="twitter:image" content="${escMeta(twitterImage || safeImage)}" />` : ""}
 
     <!-- Preload JS Modules -->
-    ${(jsFiles || [])
+    ${(preloadJsFiles || jsFiles || [])
       .map((js) => `<link rel="modulepreload" href="${js}">`)
       .join("\n    ")}
 
@@ -124,7 +125,7 @@ function seoTemplate({
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
     ${bodyScriptsRaw}
-    <div id="root">${appHtml || ""}</div>
+    <div id="root">${isBot ? (appHtml || "") : ""}</div>
     <noscript>
       <div class="ssr-fallback-content">
         ${appHtml || ""}

@@ -1,36 +1,19 @@
 import { Router } from 'express'
 import CustomReportRequest from '../models/CustomReportRequest.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
-import nodemailer from 'nodemailer'
+import { sendMail } from '../utils/mailer.js'
 
 const router = Router()
 
-function makeTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env
-  if (!SMTP_HOST || !SMTP_USER) return null
-  const port = Number(SMTP_PORT || 465)
-  const secure = String(SMTP_SECURE || 'true') === 'true' || port === 465
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { rejectUnauthorized: false }
-  })
-}
-
 async function notifyAdmin(crr) {
-  const transport = makeTransport()
-  if (!transport) return
-  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER
-  if (!to) return
-  const subject = `[bizwit] New Custom Report Request from ${crr.company}`
+  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
+  const subject = `[Bizwit] New Custom Report Request from ${crr.company}`
   const text = `Name: ${crr.name}\nEmail: ${crr.email}\nCompany: ${crr.company}\nIndustry: ${crr.industry}\nDeadline: ${crr.deadline || ''}\n\nRequirements:\n${crr.requirements}`
-  await transport.sendMail({
-    from: process.env.MAIL_FROM || `no-reply@${(process.env.DOMAIN || 'bizwit.local')}`,
+  await sendMail({
     to,
     subject,
     text,
+    replyTo: crr.email,
   })
 }
 

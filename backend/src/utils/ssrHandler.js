@@ -113,19 +113,25 @@ let assetCache = {
   mtime: 0,
   cssFiles: [],
   jsFiles: [],
+  preloadJsFiles: [],
 };
 
 function getExtractedAssets(indexPath) {
   try {
     const stats = fs.statSync(indexPath);
     if (assetCache.indexPath === indexPath && assetCache.mtime === stats.mtimeMs) {
-      return { cssFiles: assetCache.cssFiles, jsFiles: assetCache.jsFiles };
+      return {
+        cssFiles: assetCache.cssFiles,
+        jsFiles: assetCache.jsFiles,
+        preloadJsFiles: assetCache.preloadJsFiles
+      };
     }
 
     const indexHtml = fs.readFileSync(indexPath, "utf-8");
 
     const cssFiles = [];
     const jsFiles = [];
+    const preloadJsFiles = [];
 
     const cssRegex = /href=["']([^"']+\.css(?:\?[^"']*)?)["']/gi;
     let match;
@@ -139,8 +145,9 @@ function getExtractedAssets(indexPath) {
       }
     }
 
-    const jsRegex = /src=["']([^"']+\.js(?:\?[^"']*)?)["']/gi;
-    while ((match = jsRegex.exec(indexHtml)) !== null) {
+    // Extract entry scripts (<script src="...js">)
+    const scriptRegex = /<script\b[^>]*src=["']([^"']+\.js(?:\?[^"']*)?)["'][^>]*>/gi;
+    while ((match = scriptRegex.exec(indexHtml)) !== null) {
       let src = match[1];
       if (!src.startsWith("/") && !src.startsWith("http")) {
         src = "/" + src;
@@ -150,17 +157,49 @@ function getExtractedAssets(indexPath) {
       }
     }
 
+    // Extract modulepreload links (<link rel="modulepreload" href="...js">)
+    const preloadRegex = /<link\b[^>]*rel=["']modulepreload["'][^>]*href=["']([^"']+\.js(?:\?[^"']*)?)["'][^>]*>/gi;
+    while ((match = preloadRegex.exec(indexHtml)) !== null) {
+      let href = match[1];
+      if (!href.startsWith("/") && !href.startsWith("http")) {
+        href = "/" + href;
+      }
+      if (!preloadJsFiles.includes(href)) {
+        preloadJsFiles.push(href);
+      }
+    }
+
+    // Reverse attribute order check for modulepreload (<link href="...js" rel="modulepreload">)
+    const preloadRegexAlt = /<link\b[^>]*href=["']([^"']+\.js(?:\?[^"']*)?)["'][^>]*rel=["']modulepreload["'][^>]*>/gi;
+    while ((match = preloadRegexAlt.exec(indexHtml)) !== null) {
+      let href = match[1];
+      if (!href.startsWith("/") && !href.startsWith("http")) {
+        href = "/" + href;
+      }
+      if (!preloadJsFiles.includes(href)) {
+        preloadJsFiles.push(href);
+      }
+    }
+
+    // Include entry scripts in preload list
+    for (const js of jsFiles) {
+      if (!preloadJsFiles.includes(js)) {
+        preloadJsFiles.push(js);
+      }
+    }
+
     assetCache = {
       indexPath,
       mtime: stats.mtimeMs,
       cssFiles,
       jsFiles,
+      preloadJsFiles,
     };
 
-    return { cssFiles, jsFiles };
+    return { cssFiles, jsFiles, preloadJsFiles };
   } catch (err) {
     console.error("Asset extraction error:", err);
-    return { cssFiles: [], jsFiles: [] };
+    return { cssFiles: [], jsFiles: [], preloadJsFiles: [] };
   }
 }
 
@@ -671,7 +710,7 @@ export const ssrHandler = async (req, res, next) => {
       return res.status(500).send("Server Error: Frontend build not found.");
     }
 
-    const { cssFiles, jsFiles } = getExtractedAssets(indexPath);
+    const { cssFiles, jsFiles, preloadJsFiles } = getExtractedAssets(indexPath);
 
     const schemaMarkup = generateSchemaScripts(schemas);
 
@@ -684,6 +723,7 @@ export const ssrHandler = async (req, res, next) => {
       appHtml,
       cssFiles,
       jsFiles,
+      preloadJsFiles,
       isBot,
     });
 

@@ -1,39 +1,14 @@
 import { Router } from 'express'
-import nodemailer from 'nodemailer'
 import axios from 'axios'
 import Inquiry from '../models/Inquiry.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
+import { sendMail } from '../utils/mailer.js'
 
 const router = Router()
 
-// Mailer init (if configured)
-// Mailer init (if configured)
-function makeTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env
-  if (!SMTP_HOST || !SMTP_USER) return null
-  const port = Number(SMTP_PORT || 465)
-  const secure = String(SMTP_SECURE || 'true') === 'true' || port === 465
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: {
-      rejectUnauthorized: false
-    }
-  })
-}
-
 export async function sendNotification(inquiry) {
   try {
-    const transport = makeTransport()
-    if (!transport) {
-      console.warn('⚠️ SMTP Transport not configured. Skipping email notification.')
-      return
-    }
     const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
-    const from = process.env.MAIL_FROM || `"Bizwit Research" <${process.env.SMTP_USER || 'contact@bizwitresearch.com'}>`
-
     const subject = `[Bizwit] New Inquiry: ${inquiry.inquiryType || 'General'} - ${inquiry.name}`
 
     // Structured HTML email format
@@ -146,14 +121,13 @@ Received: ${new Date(inquiry.createdAt).toLocaleString()}
 ---
 Please respond to the customer at: ${inquiry.email}`
 
-    await transport.sendMail({
-      from,
+    await sendMail({
       to,
       subject,
       text,
       html,
+      replyTo: inquiry.email,
     })
-    console.log(`📧 Notification email sent for inquiry ${inquiry.inquiryNumber} to ${to}`)
   } catch (err) {
     console.error('❌ Failed to send notification email:', err)
   }
@@ -161,10 +135,6 @@ Please respond to the customer at: ${inquiry.email}`
 
 export async function sendAutoResponse(inquiry) {
   try {
-    const transport = makeTransport()
-    if (!transport) return
-    const from = process.env.MAIL_FROM || `"Bizwit Research" <${process.env.SMTP_USER || 'contact@bizwitresearch.com'}>`
-
     const subject = `Thank you for contacting Bizwit Research`
 
     const html = `
@@ -239,14 +209,12 @@ Bizwit Research & Consulting LLP
 Email: contact@bizwitresearch.com | Phone: +916 267 104147
 www.bizwitresearch.com`
 
-    await transport.sendMail({
-      from,
+    await sendMail({
       to: inquiry.email,
       subject,
       text,
       html,
     })
-    console.log(`📧 Auto-response email sent to customer ${inquiry.email}`)
   } catch (err) {
     console.error('❌ Failed to send auto-response email:', err)
   }
@@ -259,7 +227,7 @@ async function verifyCaptcha(token) {
     token === 'true' ||
     token === 'test-token' ||
     token === 'VITE_RECAPTCHA_SITE_TOKEN' ||
-    token === '6Lekyj4eAAAAAH05CjPDI823cBnReFFn3XVIQdAb' ||
+    token === '6LeU_sgUAAAAAAqCLC1Bq5sDIm2sXf1LAQby3Gj7' ||
     token === process.env.RECAPTCHA_SECRET_KEY
   ) {
     return true
@@ -267,7 +235,7 @@ async function verifyCaptcha(token) {
 
   const secret =
     process.env.RECAPTCHA_SECRET_KEY ||
-    '6Lekyj4eAAAAAH05CjPDI823cBnReFFn3XVIQdAb'
+    '6LeU_sgUAAAAAER3MGVsbLFhBWmX-s84Mr5oTJtJ'
 
   try {
     const response = await axios.post(
