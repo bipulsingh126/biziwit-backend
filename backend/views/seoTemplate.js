@@ -25,6 +25,7 @@ function seoTemplate({
   schemaMarkup,
   preconnects,
   publisher,
+  isBot = false,
 }) {
   const headScriptsRaw = Array.isArray(scripts) ? scripts.join("\n") : "";
   const bodyScriptsRaw = Array.isArray(bodyScripts) ? bodyScripts.join("\n") : "";
@@ -65,6 +66,7 @@ function seoTemplate({
       a { color: inherit; text-decoration: none; }
       img, video { max-width: 100%; height: auto; display: block; }
       .container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+      .ssr-fallback-content { padding: 20px; max-width: 1200px; margin: 0 auto; font-family: sans-serif; }
     </style>
 
     <!-- Main Stylesheets (Placed BEFORE preconnects, meta tags, and scripts for immediate render-blocking priority) -->
@@ -122,9 +124,12 @@ function seoTemplate({
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
     ${bodyScriptsRaw}
-    <div id="root">${appHtml || ""}</div>
+    <div id="root">${isBot ? (appHtml || "") : ""}</div>
     <noscript>
-      <p>This website requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      <div class="ssr-fallback-content">
+        ${appHtml || ""}
+      </div>
+      <p style="text-align:center;padding:10px;color:#666;">This website is optimized for JavaScript. Please enable JavaScript for the full interactive experience.</p>
     </noscript>
     
     <!-- Injected Scripts -->

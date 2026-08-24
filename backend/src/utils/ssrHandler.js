@@ -23,7 +23,7 @@ import {
   renderHomePage, renderReportListing, renderReportDetail,
   renderBlogListing, renderBlogDetail, renderMegatrendListing,
   renderMegatrendDetail, renderCaseStudyListing, renderCaseStudyDetail,
-  renderStaticPage
+  renderStaticPage, renderServicePageBySlug
 } from "./contentRenderer.js";
 import { setCacheHeaders } from "./cacheControl.js";
 
@@ -56,6 +56,56 @@ export function getFrontendDistPath() {
 
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
 const SITE_URL = "https://bizwitresearch.com";
+
+export function isBotRequest(userAgent = "") {
+  if (!userAgent || typeof userAgent !== "string") return false;
+  const ua = userAgent.toLowerCase();
+  const botSignatures = [
+    "googlebot",
+    "bingbot",
+    "yandex",
+    "baiduspider",
+    "duckduckbot",
+    "slurp",
+    "yahoo",
+    "twitterbot",
+    "facebookexternalhit",
+    "facebot",
+    "linkedinbot",
+    "embedly",
+    "quora link preview",
+    "showyoubot",
+    "outbrain",
+    "pinterest",
+    "slackbot",
+    "vkshare",
+    "w3c_validator",
+    "whatsapp",
+    "telegrambot",
+    "applebot",
+    "petalbot",
+    "bytespider",
+    "semrushbot",
+    "ahrefsbot",
+    "mj12bot",
+    "screaming frog",
+    "seznambot",
+    "ia_archiver",
+    "mediapartners-google",
+    "adsbot-google",
+    "feedfetcher-google",
+    "bingpreview",
+    "crawler",
+    "spider",
+    "robot",
+    "lighthouse",
+    "headlesschrome",
+    "prerender",
+    "curl",
+    "wget"
+  ];
+  return botSignatures.some((sig) => ua.includes(sig));
+}
 
 let assetCache = {
   indexPath: "",
@@ -142,6 +192,49 @@ const LISTING_PREFIXES = new Set([
   "case-studies", "case-study", "megatrends", "megatrend",
   "press-release", "report_categories"
 ]);
+
+const SERVICE_PAGE_DEFAULTS = {
+  "market-share-gain": {
+    title: "Market Share Gain Solutions - Data-Driven Strategy | Bizwit Research",
+    description: "Win market share with data-driven strategy. Our market share gain solutions help businesses identify whitespace opportunities, analyze competition, and develop winning strategies.",
+    keywords: "market share gain, competitive strategy, market analysis, growth strategy, market share solutions, whitespace opportunities, market benchmarking",
+  },
+  "full-time-equivalent": {
+    title: "Full-Time Equivalent (FTE) Model - Dedicated Research Team | Bizwit Research",
+    description: "Get dedicated research and consulting resources aligned with your business. Our FTE model provides on-demand, cost-efficient research teams for long-term success.",
+    keywords: "FTE model, full-time equivalent, dedicated research team, outsourced research, consulting resources, extended team model",
+  },
+  "thought-leadership": {
+    title: "Thought Leadership Demand Generation Services | Bizwit Research",
+    description: "Turn thought leadership into qualified demand. Strategic content creation, buyer persona mapping, and B2B content-led demand generation services.",
+    keywords: "thought leadership demand generation, B2B content marketing, lead generation, whitepapers, B2B demand generation, content strategy",
+  },
+  "market-intelligence": {
+    title: "Market Intelligence & Analysis Services | Bizwit Research",
+    description: "Gain clarity in a fast-moving world with unrivaled market intelligence. Expert market entry strategy, expansion planning, and demand forecasting services.",
+    keywords: "market intelligence, market analysis, feasibility study, market entry strategy, market expansion, demand forecasting",
+  },
+  "competitive-intelligence": {
+    title: "Competitive Intelligence & Strategic Analysis | Bizwit Research",
+    description: "Accelerate impactful growth through bold, insight-led strategies. Our competitive intelligence services provide benchmarking, positioning, and go-to-market insights.",
+    keywords: "competitive intelligence, strategic analysis, market benchmarking, competitive positioning, GTM strategy",
+  },
+  "esg-consulting": {
+    title: "ESG Consulting & Sustainability | Bizwit Research",
+    description: "Turn environmental responsibility into a competitive advantage with Bizwit Research. Expert ESG consulting, carbon footprint analysis, and environmental impact reporting services.",
+    keywords: "ESG consulting, sustainability consulting, ESG strategy, carbon footprint analysis, environmental impact reporting, sustainability services",
+  },
+  "sustainability": {
+    title: "ESG Consulting & Sustainability | Bizwit Research",
+    description: "Turn environmental responsibility into a competitive advantage with Bizwit Research. Expert ESG consulting, carbon footprint analysis, and environmental impact reporting services.",
+    keywords: "ESG consulting, sustainability consulting, ESG strategy, carbon footprint analysis, environmental impact reporting, sustainability services",
+  },
+  "india-gtm-strategy": {
+    title: "India Market Entry Strategy - Enter India with Confidence | Bizwit Research",
+    description: "Enter India with confidence powered by insight. Expert India market entry strategy, localized GTM playbook, and regional expansion planning services.",
+    keywords: "India market entry, India business strategy, India GTM strategy, India market research, enter Indian market",
+  }
+};
 
 const NO_INDEX_ACTIONS = new Set(["download-sample", "inquiry", "buy-now", "request-customization", "talk-expert"]);
 
@@ -439,9 +532,24 @@ export const ssrHandler = async (req, res, next) => {
     } else if (pageType === "service-page") {
       const servicePage = await ServicePage.findOne({ slug: firstSegment }).lean();
       const seoPage = await findSeoPage(normalizedPath, firstSegment);
-      if (seoPage) seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
-      else { seoData.title = `${firstSegment.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} | Bizwit Research`; seoData.canonical = `${SITE_URL}${normalizedPath}`; seoData.robots = "index, follow"; }
-      appHtml = renderStaticPage({ title: seoData.title, description: seoData.description });
+      const defaultSeo = SERVICE_PAGE_DEFAULTS[firstSegment] || {};
+
+      if (seoPage) {
+        seoData = extractSeoFromSeoPage(seoPage, normalizedPath);
+        if (!seoData.title) seoData.title = defaultSeo.title || `${firstSegment.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} | Bizwit Research`;
+        if (!seoData.description) seoData.description = defaultSeo.description || "";
+        if (!seoData.keywords) seoData.keywords = defaultSeo.keywords || "";
+      } else {
+        seoData.title = servicePage?.titleTag || servicePage?.metaTitle || defaultSeo.title || `${firstSegment.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())} | Bizwit Research`;
+        seoData.description = servicePage?.metaDescription || servicePage?.description || defaultSeo.description || "";
+        seoData.keywords = servicePage?.keywords || defaultSeo.keywords || "";
+        seoData.canonical = `${SITE_URL}${normalizedPath}`;
+        seoData.robots = "index, follow";
+        seoData.ogTitle = seoData.title;
+        seoData.ogDescription = seoData.description;
+      }
+
+      appHtml = renderServicePageBySlug(firstSegment, servicePage, seoData);
       schemas.push(
         serviceSchema({ name: seoData.title, description: seoData.description, url: normalizedPath, image: seoData.image }),
         breadcrumbSchema([{ name: "Home", url: "/" }, { name: seoData.title, url: normalizedPath }])
@@ -556,12 +664,16 @@ export const ssrHandler = async (req, res, next) => {
 
     const schemaMarkup = generateSchemaScripts(schemas);
 
+    const userAgent = req.headers["user-agent"] || "";
+    const isBot = isBotRequest(userAgent);
+
     const html = seoTemplate({
       ...seoData,
       schemaMarkup,
       appHtml,
       cssFiles,
       jsFiles,
+      isBot,
     });
 
     res.send(html);
