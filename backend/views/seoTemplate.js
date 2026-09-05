@@ -125,7 +125,7 @@ function seoTemplate({
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
     ${bodyScriptsRaw}
-    <div id="root">${isBot ? (appHtml || "") : ""}</div>
+    <div id="root">${appHtml || ""}</div>
     <noscript>
       <div class="ssr-fallback-content">
         ${appHtml || ""}

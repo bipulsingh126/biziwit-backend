@@ -273,6 +273,11 @@ const SERVICE_PAGE_DEFAULTS = {
     title: "India Market Entry Strategy - Enter India with Confidence | Bizwit Research",
     description: "Enter India with confidence powered by insight. Expert India market entry strategy, localized GTM playbook, and regional expansion planning services.",
     keywords: "India market entry, India business strategy, India GTM strategy, India market research, enter Indian market",
+  },
+  "voice-of-customer": {
+    title: "Voice of Customer (VoC) - Customer Feedback Analysis | Bizwit Research",
+    description: "Capture your customers' expectations, preferences, and feedback. Transform customer insights into strategies for growth, innovation, and satisfaction with our VoC services.",
+    keywords: "voice of customer, VoC, customer feedback, customer insights, customer surveys, customer interviews, social listening",
   }
 };
 
