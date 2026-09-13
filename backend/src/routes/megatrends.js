@@ -138,6 +138,7 @@ router.post("/public/:slug/whitepaper", async (req, res, next) => {
       name,
       email,
       company,
+      jobTitle: role || '',
       subject: `White Paper Request: ${mg.title}`,
       message: `Role: ${role || 'N/A'}. User requested whitepaper download for megatrend: ${mg.title}`,
       inquiryType: 'Download White Paper',
@@ -146,8 +147,8 @@ router.post("/public/:slug/whitepaper", async (req, res, next) => {
     }).catch((err) => console.error("Inquiry sync error in megatrends:", err));
 
     if (inquiryDoc) {
-      sendNotification(inquiryDoc).catch(() => {});
-      sendAutoResponse(inquiryDoc).catch(() => {});
+      sendNotification(inquiryDoc).catch((err) => console.error('Megatrends notification error:', err));
+      sendAutoResponse(inquiryDoc).catch((err) => console.warn('Megatrends auto-response notice:', err));
     } else {
       notifySubmission(created).catch(() => {});
     }

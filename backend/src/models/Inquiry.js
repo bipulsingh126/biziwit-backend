@@ -7,8 +7,15 @@ const InquirySchema = new mongoose.Schema({
   email: { type: String, required: true, lowercase: true, trim: true },
   phone: { type: String, trim: true },
   company: { type: String, trim: true },
+  jobTitle: { type: String, trim: true },
+  country: { type: String, trim: true },
+  reportCode: { type: String, trim: true },
+  reportId: { type: mongoose.Schema.Types.ObjectId, ref: 'Report' },
+  reportTitle: { type: String, trim: true },
+  reportSlug: { type: String, trim: true },
+  license: { type: String, trim: true },
   subject: { type: String, trim: true },
-  message: { type: String, required: true },
+  message: { type: String, default: 'General Inquiry' },
   inquiryType: {
     type: String,
     enum: [
@@ -25,6 +32,7 @@ const InquirySchema = new mongoose.Schema({
       'Contact Us',
       'Submit Your Profile',
       'Download White Paper',
+      'White Paper Download',
       'Individual Service Page',
       'Subscription',
       'Other'

@@ -1,26 +1,60 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 1. Load backend/.env (relative to this file: ../../.env)
+const backendEnvPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(backendEnvPath)) {
+  dotenv.config({ path: backendEnvPath });
+}
+
+// 2. Load root .env as fallback (../../../.env)
+const rootEnvPath = path.resolve(__dirname, '../../../.env');
+if (fs.existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+}
+
+// 3. Also load from current working directory as safety net
 dotenv.config();
+
+let cachedTransporter = null;
 
 /**
  * Creates and returns the nodemailer SMTP transporter.
  */
-function createTransporter() {
+export function getTransporter() {
+  // Re-check env vars in case they were set/modified dynamically
   const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
   const port = Number(process.env.SMTP_PORT || 465);
-  const user = process.env.SMTP_USER || '';
-  const pass = process.env.SMTP_PASS || '';
-  const secure = String(process.env.SMTP_SECURE || 'true') === 'true' || port === 465;
+  const user = (process.env.SMTP_USER || '').trim();
+  // Strip potential wrapping quotes from password in .env
+  const rawPass = (process.env.SMTP_PASS || '').trim();
+  const pass = rawPass.replace(/^["']|["']$/g, '');
+  const secure = String(process.env.SMTP_SECURE ?? (port === 465)).toLowerCase() === 'true' || port === 465;
 
   if (!host || !user || !pass) {
+    console.warn('⚠️ [SMTP] Transporter not initialized: SMTP_HOST, SMTP_USER, or SMTP_PASS missing in process.env.');
     return null;
   }
 
-  return nodemailer.createTransport({
+  if (cachedTransporter) {
+    return cachedTransporter;
+  }
+
+  cachedTransporter = nodemailer.createTransport({
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+    rateDelta: 1000,
+    rateLimit: 5,
     host,
     port,
-    secure, // true for 465 (implicit TLS/SSL), false for other ports (587 STARTTLS)
+    secure, // true for 465 (implicit TLS/SSL), false for 587 (STARTTLS)
     auth: {
       user,
       pass,
@@ -29,16 +63,18 @@ function createTransporter() {
       rejectUnauthorized: false,
     },
   });
+
+  return cachedTransporter;
 }
 
-const transporter = createTransporter();
+export const transporter = getTransporter();
 
 /**
  * Verifies SMTP connection and authentication at startup.
  * Logs clear success or detailed failure diagnostics.
  */
 export async function verifyTransporter() {
-  const currentTransporter = transporter || createTransporter();
+  const currentTransporter = getTransporter();
   if (!currentTransporter) {
     console.warn('⚠️ [SMTP] Transporter not initialized: SMTP_HOST, SMTP_USER, or SMTP_PASS missing in environment.');
     return false;
@@ -75,7 +111,7 @@ export async function verifyTransporter() {
  * @returns {Promise<{success: boolean, messageId?: string, response?: string, error?: any}>}
  */
 export async function sendMail({ to, subject, html, text, from, replyTo, attachments }) {
-  const currentTransporter = transporter || createTransporter();
+  const currentTransporter = getTransporter();
 
   if (!currentTransporter) {
     const errorMsg = 'SMTP credentials not configured. Email will not be sent.';

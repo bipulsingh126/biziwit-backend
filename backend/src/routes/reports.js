@@ -3734,19 +3734,31 @@ router.post('/request-sample/:slug', validateSlugAndReport, async (req, res) => 
       country: country?.trim() || '',
       message: message?.trim() || `Sample request for: ${report.title}`,
       pageReportTitle: report.title,
+      reportCode: report.reportCode || '',
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
       status: 'new'
     })
 
-    // Send email notifications (non-blocking)
-    Promise.all([
-      sendNotification(inquiry),
-      sendAutoResponse(inquiry)
-    ]).catch(err => {
-      console.error('Email notification error:', err)
-    })
+    // Send email notifications to Webmail (non-blocking but isolated)
+    sendNotification(inquiry)
+      .then(async (result) => {
+        if (!result?.success) {
+          console.warn('⚠️ [Report Sample] First notification attempt to Webmail failed, retrying once in 1s...');
+          await new Promise((r) => setTimeout(r, 1000));
+          return sendNotification(inquiry);
+        }
+      })
+      .catch((err) => {
+        console.error('❌ [Report Sample] Email notification error:', err);
+      });
+
+    if (inquiry.email && inquiry.email.includes('@')) {
+      sendAutoResponse(inquiry).catch((err) => {
+        console.warn('⚠️ [Report Sample] Customer auto-response notice:', err?.message || err);
+      });
+    }
 
     await trackInteraction(report._id, 'sample_request_submitted', {
       inquiryId: inquiry._id,
@@ -4034,19 +4046,31 @@ router.post('/inquiry/:slug', validateSlugAndReport, async (req, res) => {
       country: country?.trim() || '',
       message: message.trim(),
       pageReportTitle: report.title,
+      reportCode: report.reportCode || '',
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
       status: 'new'
     })
 
-    // Send email notifications (non-blocking)
-    Promise.all([
-      sendNotification(inquiry),
-      sendAutoResponse(inquiry)
-    ]).catch(err => {
-      console.error('Email notification error:', err)
-    })
+    // Send email notifications to Webmail (non-blocking but isolated)
+    sendNotification(inquiry)
+      .then(async (result) => {
+        if (!result?.success) {
+          console.warn('⚠️ [Report Inquiry] First notification attempt to Webmail failed, retrying once in 1s...');
+          await new Promise((r) => setTimeout(r, 1000));
+          return sendNotification(inquiry);
+        }
+      })
+      .catch((err) => {
+        console.error('❌ [Report Inquiry] Email notification error:', err);
+      });
+
+    if (inquiry.email && inquiry.email.includes('@')) {
+      sendAutoResponse(inquiry).catch((err) => {
+        console.warn('⚠️ [Report Inquiry] Customer auto-response notice:', err?.message || err);
+      });
+    }
 
     await trackInteraction(report._id, 'inquiry_submitted', {
       inquiryId: inquiry._id,
@@ -4180,6 +4204,7 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
       country: country?.trim() || '',
       message: `${message?.trim() || ''}\n\nConsultation Type: ${consultationType}\nPreferred Time: ${preferredTime || 'Not specified'}`,
       pageReportTitle: report.title,
+      reportCode: report.reportCode || '',
       reportId: report._id,
       reportTitle: report.title,
       reportSlug: report.slug,
@@ -4190,13 +4215,24 @@ router.post('/talk-to-analyst/:slug', validateSlugAndReport, async (req, res) =>
       }
     })
 
-    // Send email notifications (non-blocking)
-    Promise.all([
-      sendNotification(inquiry),
-      sendAutoResponse(inquiry)
-    ]).catch(err => {
-      console.error('Email notification error:', err)
-    })
+    // Send email notifications to Webmail (non-blocking but isolated)
+    sendNotification(inquiry)
+      .then(async (result) => {
+        if (!result?.success) {
+          console.warn('⚠️ [Report Talk Analyst] First notification attempt to Webmail failed, retrying once in 1s...');
+          await new Promise((r) => setTimeout(r, 1000));
+          return sendNotification(inquiry);
+        }
+      })
+      .catch((err) => {
+        console.error('❌ [Report Talk Analyst] Email notification error:', err);
+      });
+
+    if (inquiry.email && inquiry.email.includes('@')) {
+      sendAutoResponse(inquiry).catch((err) => {
+        console.warn('⚠️ [Report Talk Analyst] Customer auto-response notice:', err?.message || err);
+      });
+    }
 
     await trackInteraction(report._id, 'analyst_consultation_requested', {
       inquiryId: inquiry._id,

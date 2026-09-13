@@ -34,7 +34,22 @@ import testimonialsRoutes from './src/routes/testimonials.js'
 import contentRoutes from './src/routes/content.js'
 import socialShareRoutes from './src/routes/socialShare.js'
 
-dotenv.config()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Robustly load environment variables
+const envCandidates = [
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(process.cwd(), 'backend', '.env'),
+  path.resolve(process.cwd(), '.env'),
+];
+for (const p of envCandidates) {
+  if (fs.existsSync(p)) {
+    dotenv.config({ path: p });
+  }
+}
+dotenv.config();
 
 // Validate required environment variables
 const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI']
@@ -47,9 +62,6 @@ if (missingEnvVars.length > 0) {
 }
 
 const app = express()
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''

@@ -7,8 +7,24 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { Server } from 'socket.io'
 
+import { verifyTransporter } from './src/utils/mailer.js'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// Robustly load environment variables
+const envCandidates = [
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(process.cwd(), 'backend', '.env'),
+  path.resolve(process.cwd(), '.env'),
+]
+for (const p of envCandidates) {
+  if (fs.existsSync(p)) {
+    dotenv.config({ path: p })
+  }
+}
+dotenv.config()
 
 // Handling Uncaught Exception
 process.on("uncaughtException", (err) => {
@@ -16,8 +32,6 @@ process.on("uncaughtException", (err) => {
   console.log(`Shutting down the server due to Handling Uncaught Exception`)
   process.exit(1)
 })
-
-dotenv.config()
 
 const PORT = process.env.PORT || 4000
 const USE_HTTPS = process.env.USE_HTTPS === 'true'
@@ -67,6 +81,11 @@ connectDB()
   .then(async () => {
     // Seed default admin users
     await seedDefaultAdmin()
+
+    // Verify SMTP connection on startup for email notifications
+    verifyTransporter().catch((err) => {
+      console.warn('⚠️ [SMTP] Transporter verification warning:', err?.message || err)
+    })
 
     // Start server
     server.listen(PORT, () => {

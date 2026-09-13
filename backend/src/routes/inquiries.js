@@ -8,128 +8,237 @@ const router = Router()
 
 export async function sendNotification(inquiry) {
   try {
-    const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
-    const subject = `[Bizwit] New Inquiry: ${inquiry.inquiryType || 'General'} - ${inquiry.name}`
+    const rawTo = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com';
+    // Support comma-separated notification emails if configured
+    const to = rawTo.includes(',') ? rawTo.split(',').map((e) => e.trim()).filter(Boolean) : rawTo.trim();
 
-    // Structured HTML email format
+    const type = inquiry.inquiryType || 'General Inquiry';
+    const customerName = inquiry.name || 'Website Visitor';
+    const companyName = inquiry.company ? ` (${inquiry.company})` : '';
+    const reportRef = inquiry.pageReportTitle ? ` | ${inquiry.pageReportTitle}` : '';
+    const subject = `[Bizwit Lead] ${type} - ${customerName}${companyName}${reportRef}`;
+
+    const formattedDate = inquiry.createdAt
+      ? new Date(inquiry.createdAt).toLocaleString('en-US', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'UTC',
+        }) + ' UTC'
+      : new Date().toLocaleString();
+
+    // Collect any extra fields from inquiry or inquiry.meta for complete visibility
+    const extraFields = [];
+    if (inquiry.jobTitle) extraFields.push({ label: 'Job Title / Designation', value: inquiry.jobTitle });
+    if (inquiry.country) extraFields.push({ label: 'Country', value: inquiry.country });
+    if (inquiry.reportCode) extraFields.push({ label: 'Report Code', value: inquiry.reportCode });
+    if (inquiry.license) extraFields.push({ label: 'License Selected', value: inquiry.license });
+    if (inquiry.meta && typeof inquiry.meta === 'object') {
+      for (const [key, val] of Object.entries(inquiry.meta)) {
+        if (val !== undefined && val !== null && val !== '') {
+          const formattedKey = key
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, (str) => str.toUpperCase());
+          extraFields.push({
+            label: formattedKey,
+            value: typeof val === 'object' ? JSON.stringify(val) : String(val),
+          });
+        }
+      }
+    }
+
     const html = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${subject}</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #0066cc; color: white; padding: 20px; text-align: center; }
-          .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
-          .field { margin-bottom: 15px; }
-          .label { font-weight: bold; color: #0066cc; }
-          .value { margin-top: 5px; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #222; margin: 0; padding: 0; background-color: #f4f6f9; }
+          .wrapper { max-width: 650px; margin: 25px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #e1e4e8; }
+          .header { background: linear-gradient(135deg, #104D72 0%, #0B3A57 100%); color: #ffffff; padding: 25px 30px; text-align: left; }
+          .header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+          .header p { margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; }
+          .badge { display: inline-block; background: #FF4040; color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; text-transform: uppercase; margin-top: 8px; }
+          .body-content { padding: 30px; }
+          .section-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #104D72; margin-top: 20px; margin-bottom: 12px; border-bottom: 2px solid #eef2f6; padding-bottom: 6px; }
+          .section-title:first-of-type { margin-top: 0; }
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+          .info-table tr td { padding: 9px 12px; font-size: 14px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+          .info-table tr:nth-child(even) { background-color: #fcfdfe; }
+          .label { font-weight: 600; color: #4b5563; width: 35%; white-space: nowrap; }
+          .value { color: #111827; width: 65%; word-break: break-word; }
+          .value a { color: #104D72; text-decoration: none; font-weight: 600; }
+          .value a:hover { text-decoration: underline; }
+          .message-box { background: #f8fafc; border-left: 4px solid #104D72; padding: 15px; border-radius: 4px; font-size: 14px; color: #1f2937; white-space: pre-wrap; margin-top: 8px; line-height: 1.6; }
+          .footer { background: #f8f9fa; padding: 20px 30px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+          .footer p { margin: 4px 0; }
+          .footer a { color: #104D72; text-decoration: none; font-weight: 600; }
         </style>
       </head>
       <body>
-        <div class="container">
+        <div class="wrapper">
           <div class="header">
-            <h2>New Inquiry Received</h2>
+            <h1>New Customer Inquiry Received</h1>
+            <p>Bizwit Research & Consulting LLP — Automated Notification</p>
+            <span class="badge">${type}</span>
           </div>
-          <div class="content">
-            <div class="field">
-              <div class="label">Inquiry Number:</div>
-              <div class="value">${inquiry.inquiryNumber || 'N/A'}</div>
-            </div>
-            <div class="field">
-              <div class="label">Inquiry Type:</div>
-              <div class="value">${inquiry.inquiryType || 'General Inquiry'}</div>
-            </div>
-            <div class="field">
-              <div class="label">Priority:</div>
-              <div class="value">${inquiry.priority || 'medium'}</div>
-            </div>
-            <div class="field">
-              <div class="label">Name:</div>
-              <div class="value">${inquiry.name}</div>
-            </div>
-            <div class="field">
-              <div class="label">Email:</div>
-              <div class="value"><a href="mailto:${inquiry.email}">${inquiry.email}</a></div>
-            </div>
-            ${inquiry.phone ? `
-            <div class="field">
-              <div class="label">Phone:</div>
-              <div class="value"><a href="tel:${inquiry.phone}">${inquiry.phone}</a></div>
-            </div>
+          <div class="body-content">
+            <div class="section-title">Lead Overview</div>
+            <table class="info-table">
+              <tr>
+                <td class="label">Inquiry Number:</td>
+                <td class="value"><strong>${inquiry.inquiryNumber || 'N/A'}</strong></td>
+              </tr>
+              <tr>
+                <td class="label">Inquiry Type:</td>
+                <td class="value"><strong>${type}</strong></td>
+              </tr>
+              <tr>
+                <td class="label">Priority:</td>
+                <td class="value"><span style="text-transform: capitalize; font-weight: 600; color: ${inquiry.priority === 'urgent' || inquiry.priority === 'high' ? '#dc2626' : '#2563eb'};">${inquiry.priority || 'medium'}</span></td>
+              </tr>
+              <tr>
+                <td class="label">Received Timestamp:</td>
+                <td class="value">${formattedDate}</td>
+              </tr>
+              <tr>
+                <td class="label">Source:</td>
+                <td class="value">${inquiry.source || 'website'}</td>
+              </tr>
+            </table>
+
+            <div class="section-title">Customer Information</div>
+            <table class="info-table">
+              <tr>
+                <td class="label">Full Name:</td>
+                <td class="value"><strong>${inquiry.name || 'N/A'}</strong></td>
+              </tr>
+              <tr>
+                <td class="label">Email Address:</td>
+                <td class="value"><a href="mailto:${inquiry.email}">${inquiry.email || 'N/A'}</a></td>
+              </tr>
+              <tr>
+                <td class="label">Phone Number:</td>
+                <td class="value">${inquiry.phone ? `<a href="tel:${inquiry.phone}">${inquiry.phone}</a>` : '<span style=\"color:#9ca3af\">Not provided</span>'}</td>
+              </tr>
+              <tr>
+                <td class="label">Company Name:</td>
+                <td class="value">${inquiry.company || '<span style=\"color:#9ca3af\">Not provided</span>'}</td>
+              </tr>
+              ${inquiry.jobTitle ? `
+              <tr>
+                <td class="label">Job Title / Role:</td>
+                <td class="value">${inquiry.jobTitle}</td>
+              </tr>
+              ` : ''}
+              ${inquiry.country ? `
+              <tr>
+                <td class="label">Country:</td>
+                <td class="value">${inquiry.country}</td>
+              </tr>
+              ` : ''}
+            </table>
+
+            ${inquiry.pageReportTitle || inquiry.reportCode || inquiry.license ? `
+            <div class="section-title">Report / Service Details</div>
+            <table class="info-table">
+              ${inquiry.pageReportTitle ? `
+              <tr>
+                <td class="label">Report / Topic:</td>
+                <td class="value"><strong>${inquiry.pageReportTitle}</strong></td>
+              </tr>
+              ` : ''}
+              ${inquiry.reportCode ? `
+              <tr>
+                <td class="label">Report Code:</td>
+                <td class="value"><code>${inquiry.reportCode}</code></td>
+              </tr>
+              ` : ''}
+              ${inquiry.license ? `
+              <tr>
+                <td class="label">License:</td>
+                <td class="value">${inquiry.license}</td>
+              </tr>
+              ` : ''}
+            </table>
             ` : ''}
-            ${inquiry.company ? `
-            <div class="field">
-              <div class="label">Company:</div>
-              <div class="value">${inquiry.company}</div>
-            </div>
+
+            ${extraFields.length > 0 ? `
+            <div class="section-title">Additional Inquiry Details</div>
+            <table class="info-table">
+              ${extraFields.map((f) => `
+                <tr>
+                  <td class="label">${f.label}:</td>
+                  <td class="value">${f.value}</td>
+                </tr>
+              `).join('')}
+            </table>
             ` : ''}
-            ${inquiry.subject ? `
-            <div class="field">
-              <div class="label">Subject:</div>
-              <div class="value">${inquiry.subject}</div>
-            </div>
-            ` : ''}
-            ${inquiry.pageReportTitle ? `
-            <div class="field">
-              <div class="label">Page/Report:</div>
-              <div class="value">${inquiry.pageReportTitle}</div>
-            </div>
-            ` : ''}
-            <div class="field">
-              <div class="label">Message:</div>
-              <div class="value">${inquiry.message}</div>
-            </div>
-            <div class="field">
-              <div class="label">Source:</div>
-              <div class="value">${inquiry.source || 'website'}</div>
-            </div>
-            <div class="field">
-              <div class="label">Received:</div>
-              <div class="value">${new Date(inquiry.createdAt).toLocaleString()}</div>
-            </div>
+
+            <div class="section-title">Inquiry Message / Request</div>
+            ${inquiry.subject ? `<p style=\"margin: 0 0 6px 0; font-size: 13px; color: #4b5563;\"><strong>Subject:</strong> ${inquiry.subject}</p>` : ''}
+            <div class="message-box">${inquiry.message || '<span style=\"color:#9ca3af\">No message text provided.</span>'}</div>
           </div>
           <div class="footer">
-            <p>This is an automated notification from Bizwit Research & Consulting LLP</p>
-            <p>Please respond to the customer at: <a href="mailto:${inquiry.email}">${inquiry.email}</a></p>
+            <p><strong>Bizwit Research & Consulting LLP</strong></p>
+            <p>303, Atulya IT Park, Bhawarkua Main Rd, Indore, Madhya Pradesh 452001, India</p>
+            <p>💡 <em>To reply directly to this customer, click "Reply" in your email client to write to <a href="mailto:${inquiry.email}">${inquiry.email}</a>.</em></p>
           </div>
         </div>
       </body>
       </html>
-    `
+    `;
 
-    const text = `New inquiry received
-
+    const text = `=====================================================
+NEW INQUIRY RECEIVED - BIZWIT RESEARCH
+=====================================================
 Inquiry Number: ${inquiry.inquiryNumber || 'N/A'}
-Inquiry Type: ${inquiry.inquiryType || 'General Inquiry'}
-Priority: ${inquiry.priority || 'medium'}
+Inquiry Type:   ${type}
+Priority:       ${inquiry.priority || 'medium'}
+Received:       ${formattedDate}
+Source:         ${inquiry.source || 'website'}
 
-Name: ${inquiry.name}
-Email: ${inquiry.email}
-Phone: ${inquiry.phone || 'N/A'}
-Company: ${inquiry.company || 'N/A'}
-Subject: ${inquiry.subject || 'N/A'}
-Page/Report: ${inquiry.pageReportTitle || 'N/A'}
+CUSTOMER INFORMATION
+-----------------------------------------------------
+Name:           ${inquiry.name}
+Email:          ${inquiry.email}
+Phone:          ${inquiry.phone || 'N/A'}
+Company:        ${inquiry.company || 'N/A'}
+Job Title:      ${inquiry.jobTitle || 'N/A'}
+Country:        ${inquiry.country || 'N/A'}
 
-Message:
-${inquiry.message}
+REPORT / INQUIRY DETAILS
+-----------------------------------------------------
+Page / Report:  ${inquiry.pageReportTitle || 'N/A'}
+Report Code:    ${inquiry.reportCode || 'N/A'}
+License:        ${inquiry.license || 'N/A'}
+Subject:        ${inquiry.subject || 'N/A'}
 
-Source: ${inquiry.source || 'website'}
-Received: ${new Date(inquiry.createdAt).toLocaleString()}
+MESSAGE
+-----------------------------------------------------
+${inquiry.message || 'N/A'}
 
----
-Please respond to the customer at: ${inquiry.email}`
+${extraFields.length > 0 ? `ADDITIONAL DETAILS\n-----------------------------------------------------\n` + extraFields.map(f => `${f.label}: ${f.value}`).join('\n') + '\n' : ''}
+=====================================================
+To respond directly to this customer, reply to this email (${inquiry.email}).
+=====================================================`;
 
-    await sendMail({
+    const result = await sendMail({
       to,
       subject,
       text,
       html,
-      replyTo: inquiry.email,
-    })
+      replyTo: inquiry.email && inquiry.email.includes('@') ? inquiry.email : undefined,
+    });
+
+    if (!result?.success) {
+      console.error('❌ [sendNotification] Failed to deliver inquiry notification email:', result?.error?.message || result?.error);
+    }
+    return result;
   } catch (err) {
-    console.error('❌ Failed to send notification email:', err)
+    console.error('❌ [sendNotification] Unhandled exception sending notification email:', err);
+    return { success: false, error: err };
   }
 }
 
@@ -290,50 +399,113 @@ async function verifyCaptcha(token) {
   return true
 }
 
+// Diagnostic test endpoint: GET /api/inquiries/test-smtp
+router.get('/test-smtp', async (req, res) => {
+  try {
+    const rawTo = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com';
+    const testDoc = {
+      inquiryNumber: 'TEST-' + Math.floor(100000 + Math.random() * 900000),
+      inquiryType: 'SMTP Diagnostic Test',
+      name: 'Bizwit Diagnostic Tester',
+      email: 'contact@bizwitresearch.com',
+      phone: '+916 267 104147',
+      company: 'Bizwit Research & Consulting LLP',
+      jobTitle: 'System Administrator',
+      country: 'India',
+      subject: '[Bizwit Test Email] Inquiry System Verification',
+      pageReportTitle: 'System Diagnostic Page',
+      message: 'This is an automated diagnostic test to verify that inquiry notifications reach the Hostinger Webmail inbox successfully.',
+      source: 'Diagnostic Endpoint',
+      createdAt: new Date(),
+    };
+
+    const result = await sendNotification(testDoc);
+    return res.json({
+      ok: result?.success || false,
+      recipient: rawTo,
+      message: result?.success
+        ? `Test notification successfully dispatched to Webmail (${rawTo})`
+        : 'Failed to deliver test email to Webmail',
+      details: result,
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Public submit
 router.post('/submit', async (req, res, next) => {
   try {
-    const { name, email, message, captchaToken, inquiryType } = req.body || {}
+    const { name, email, message, captchaToken, inquiryType } = req.body || {};
 
     // Verify Captcha (skip for Subscription and Download White Paper)
     const isWhitelistedType =
       inquiryType === 'Subscription' ||
       inquiryType === 'Download White Paper' ||
-      inquiryType === 'White Paper Download'
+      inquiryType === 'White Paper Download';
 
     if (!isWhitelistedType) {
-      const isHuman = await verifyCaptcha(captchaToken)
+      const isHuman = await verifyCaptcha(captchaToken);
       if (!isHuman) {
-        return res.status(400).json({ error: 'Captcha verification failed' })
+        return res.status(400).json({ error: 'Captcha verification failed' });
       }
     }
 
-    if (!name || !email || !message) return res.status(400).json({ error: 'Name, email and message are required' })
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    // Default message if not provided (e.g., from simple download/subscription forms)
+    const finalMessage =
+      (message && String(message).trim()) ||
+      (inquiryType ? `${inquiryType} request submitted` : 'Inquiry submitted from website');
+
+    // Create inquiry record in MongoDB
     const doc = await Inquiry.create({
-      name,
-      email,
-      phone: req.body.phone,
-      company: req.body.company,
-      subject: req.body.subject,
-      message,
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: req.body.phone ? String(req.body.phone).trim() : '',
+      company: req.body.company ? String(req.body.company).trim() : '',
+      jobTitle: req.body.jobTitle || req.body.designation || req.body.role || '',
+      country: req.body.country ? String(req.body.country).trim() : '',
+      subject: req.body.subject ? String(req.body.subject).trim() : '',
+      message: finalMessage,
       inquiryType: req.body.inquiryType || 'General Inquiry',
-      pageReportTitle: req.body.pageReportTitle,
+      pageReportTitle: req.body.pageReportTitle || req.body.reportTitle || '',
+      reportCode: req.body.reportCode || '',
+      reportSlug: req.body.reportSlug || req.body.slug || '',
+      reportId: req.body.reportId || undefined,
+      license: req.body.license || req.body.selectedLicense || '',
       source: req.body.source || 'website',
       priority: req.body.priority || 'medium',
       meta: req.body.meta || {},
-    })
+    });
 
-    // Send email notifications (non-blocking)
-    Promise.all([
-      sendNotification(doc),
-      sendAutoResponse(doc)
-    ]).catch(err => {
-      console.error('Email notification error:', err)
-    })
+    // Send email notification to Webmail (non-blocking but monitored and reliable)
+    sendNotification(doc)
+      .then(async (result) => {
+        if (!result?.success) {
+          console.warn('⚠️ [Submit] First notification attempt to Webmail failed, retrying once in 1s...');
+          await new Promise((r) => setTimeout(r, 1000));
+          return sendNotification(doc);
+        }
+      })
+      .catch((err) => {
+        console.error('❌ [Submit] Failed to send inquiry notification to Webmail:', err);
+      });
 
-    res.status(201).json({ ok: true, inquiry: doc })
-  } catch (e) { next(e) }
-})
+    // Send customer auto-response independently (isolated so it never blocks admin notification)
+    if (doc.email && doc.email.includes('@')) {
+      sendAutoResponse(doc).catch((err) => {
+        console.warn('⚠️ [Submit] Customer auto-response notice:', err?.message || err);
+      });
+    }
+
+    res.status(201).json({ ok: true, inquiry: doc });
+  } catch (e) {
+    next(e);
+  }
+});
 
 // Admin-only below
 router.use(authenticate, requireRole('super_admin', 'admin'))
