@@ -6,11 +6,49 @@ import { sendMail } from '../utils/mailer.js'
 
 const router = Router()
 
+/**
+ * Resolves and sanitizes recipient emails for inquiry notifications.
+ * Filters out invalid placeholder/dummy emails (e.g. alerts@yourdomain.com, example.com, .local)
+ * and guarantees that the Hostinger Webmail account (process.env.SMTP_USER || 'contact@bizwitresearch.com')
+ * is ALWAYS included in the recipient list.
+ * 
+ * @returns {string[]} Valid list of recipient email addresses
+ */
+export function getNotificationRecipients() {
+  const defaultMailbox = (process.env.SMTP_USER || 'contact@bizwitresearch.com').trim().toLowerCase();
+  const raw = process.env.NOTIFY_EMAIL || '';
+
+  const candidates = raw
+    .split(',')
+    .map((e) => e.trim())
+    .filter((email) => {
+      if (!email || !email.includes('@')) return false;
+      const lower = email.toLowerCase();
+      // Drop common placeholder/dummy domains
+      if (
+        lower.includes('yourdomain.com') ||
+        lower.includes('example.com') ||
+        lower.includes('.local') ||
+        lower.includes('test.com') ||
+        lower.includes('biziwit.local')
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+  // Guarantee that Hostinger Webmail account is always present
+  if (!candidates.includes(defaultMailbox)) {
+    candidates.unshift(defaultMailbox);
+  }
+
+  return candidates;
+}
+
 export async function sendNotification(inquiry) {
   try {
-    const rawTo = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com';
-    // Support comma-separated notification emails if configured
-    const to = rawTo.includes(',') ? rawTo.split(',').map((e) => e.trim()).filter(Boolean) : rawTo.trim();
+    const recipients = getNotificationRecipients();
+    const to = recipients.length === 1 ? recipients[0] : recipients;
 
     const type = inquiry.inquiryType || 'General Inquiry';
     const customerName = inquiry.name || 'Website Visitor';
@@ -224,7 +262,7 @@ ${extraFields.length > 0 ? `ADDITIONAL DETAILS\n--------------------------------
 To respond directly to this customer, reply to this email (${inquiry.email}).
 =====================================================`;
 
-    const result = await sendMail({
+    let result = await sendMail({
       to,
       subject,
       text,
@@ -232,9 +270,25 @@ To respond directly to this customer, reply to this email (${inquiry.email}).
       replyTo: inquiry.email && inquiry.email.includes('@') ? inquiry.email : undefined,
     });
 
+    // Automatic retry once after 1.5s if initial attempt failed (e.g. transient SMTP socket glitch)
     if (!result?.success) {
-      console.error('❌ [sendNotification] Failed to deliver inquiry notification email:', result?.error?.message || result?.error);
+      console.warn('⚠️ [sendNotification] First notification attempt to Webmail failed, retrying once in 1.5s...');
+      await new Promise((r) => setTimeout(r, 1500));
+      result = await sendMail({
+        to,
+        subject,
+        text,
+        html,
+        replyTo: inquiry.email && inquiry.email.includes('@') ? inquiry.email : undefined,
+      });
     }
+
+    if (!result?.success) {
+      console.error('❌ [sendNotification] Failed to deliver inquiry notification email to Hostinger Webmail:', result?.error?.message || result?.error);
+    } else {
+      console.log(`📧 [sendNotification] Inquiry notification successfully delivered to Hostinger Webmail: [${Array.isArray(to) ? to.join(', ') : to}]`);
+    }
+
     return result;
   } catch (err) {
     console.error('❌ [sendNotification] Unhandled exception sending notification email:', err);
@@ -402,7 +456,7 @@ async function verifyCaptcha(token) {
 // Diagnostic test endpoint: GET /api/inquiries/test-smtp
 router.get('/test-smtp', async (req, res) => {
   try {
-    const rawTo = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com';
+    const recipients = getNotificationRecipients();
     const testDoc = {
       inquiryNumber: 'TEST-' + Math.floor(100000 + Math.random() * 900000),
       inquiryType: 'SMTP Diagnostic Test',
@@ -422,9 +476,10 @@ router.get('/test-smtp', async (req, res) => {
     const result = await sendNotification(testDoc);
     return res.json({
       ok: result?.success || false,
-      recipient: rawTo,
+      recipients,
+      primaryRecipient: recipients[0],
       message: result?.success
-        ? `Test notification successfully dispatched to Webmail (${rawTo})`
+        ? `Test notification successfully dispatched to Hostinger Webmail (${recipients.join(', ')})`
         : 'Failed to deliver test email to Webmail',
       details: result,
     });

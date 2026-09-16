@@ -5,8 +5,12 @@ import { sendMail } from '../utils/mailer.js'
 
 const router = Router()
 
+import Inquiry from '../models/Inquiry.js'
+import { sendNotification, sendAutoResponse, getNotificationRecipients } from './inquiries.js'
+
 async function notifyAdmin(crr) {
-  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
+  const recipients = getNotificationRecipients()
+  const to = recipients.length === 1 ? recipients[0] : recipients
   const subject = `[Bizwit] New Custom Report Request from ${crr.company}`
   const text = `Name: ${crr.name}\nEmail: ${crr.email}\nCompany: ${crr.company}\nIndustry: ${crr.industry}\nDeadline: ${crr.deadline || ''}\n\nRequirements:\n${crr.requirements}`
   await sendMail({
@@ -16,9 +20,6 @@ async function notifyAdmin(crr) {
     replyTo: crr.email,
   })
 }
-
-import Inquiry from '../models/Inquiry.js'
-import { sendNotification, sendAutoResponse } from './inquiries.js'
 
 // Public submit endpoint
 router.post('/submit', async (req, res, next) => {

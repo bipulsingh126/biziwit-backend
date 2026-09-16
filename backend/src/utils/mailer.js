@@ -98,6 +98,48 @@ export async function verifyTransporter() {
 }
 
 /**
+ * Sanitizes and validates the sender ('From') email address.
+ * Strictly prevents Hostinger SMTP 450/553 errors by stripping placeholder or unresolvable
+ * domains (like .local, yourdomain.com, example.com) and ensuring a valid authenticated sender.
+ * 
+ * @param {string} [overrideFrom]
+ * @returns {string} Sanitized 'From' address formatted as `"Bizwit Research" <user@domain.com>`
+ */
+export function getSenderAddress(overrideFrom) {
+  const defaultMailbox = (process.env.SMTP_USER || 'contact@bizwitresearch.com').trim();
+  const fallback = `"Bizwit Research" <${defaultMailbox}>`;
+  const candidate = overrideFrom || process.env.MAIL_FROM;
+
+  if (!candidate || typeof candidate !== 'string') {
+    return fallback;
+  }
+
+  const trimmed = candidate.trim().replace(/^["']|["']$/g, '');
+  const lower = trimmed.toLowerCase();
+
+  // Detect unresolvable/dummy domains that cause Hostinger SMTP to reject
+  const isInvalid =
+    lower.includes('.local') ||
+    lower.includes('yourdomain.com') ||
+    lower.includes('example.com') ||
+    lower.includes('biziwit.local') ||
+    lower.includes('test.com') ||
+    !lower.includes('@');
+
+  if (isInvalid) {
+    console.warn(`⚠️ [SMTP] Rejected invalid/placeholder MAIL_FROM: "${trimmed}". Falling back to: ${fallback}`);
+    return fallback;
+  }
+
+  // If candidate is just an email (e.g. contact@bizwitresearch.com)
+  if (!trimmed.includes('<') && trimmed.includes('@')) {
+    return `"Bizwit Research" <${trimmed}>`;
+  }
+
+  return trimmed;
+}
+
+/**
  * Sends an email with full diagnostic logging on error.
  * 
  * @param {Object} options
@@ -119,11 +161,22 @@ export async function sendMail({ to, subject, html, text, from, replyTo, attachm
     return { success: false, error: new Error(errorMsg) };
   }
 
-  const defaultFrom = process.env.MAIL_FROM || `"Bizwit Research" <${process.env.SMTP_USER || 'contact@bizwitresearch.com'}>`;
+  // Ensure recipient is clean
+  const cleanTo = Array.isArray(to)
+    ? to.map((e) => (typeof e === 'string' ? e.trim() : '')).filter(Boolean)
+    : (typeof to === 'string' ? to.trim() : '');
+
+  if (!cleanTo || (Array.isArray(cleanTo) && cleanTo.length === 0)) {
+    const errorMsg = 'No valid recipient specified for sendMail.';
+    console.error(`❌ [SMTP] ${errorMsg}`);
+    return { success: false, error: new Error(errorMsg) };
+  }
+
+  const safeFrom = getSenderAddress(from);
   const mailOptions = {
-    from: from || defaultFrom,
-    to,
-    subject,
+    from: safeFrom,
+    to: cleanTo,
+    subject: subject || 'Bizwit Research Notification',
     text,
     html,
     replyTo: replyTo || undefined,
@@ -132,19 +185,19 @@ export async function sendMail({ to, subject, html, text, from, replyTo, attachm
 
   try {
     const info = await currentTransporter.sendMail(mailOptions);
-    console.log(`📧 [SMTP] Email sent successfully to [${Array.isArray(to) ? to.join(', ') : to}] | MessageId: ${info.messageId}`);
+    console.log(`📧 [SMTP] Email sent successfully to [${Array.isArray(cleanTo) ? cleanTo.join(', ') : cleanTo}] | MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId, response: info.response };
   } catch (err) {
     console.error('❌ [SMTP] Failed to send email:');
     console.error({
-      recipient: to,
+      recipient: cleanTo,
+      from: safeFrom,
       subject,
       code: err.code,
       responseCode: err.responseCode,
       response: err.response,
       command: err.command,
       message: err.message,
-      stack: err.stack,
     });
     return { success: false, error: err };
   }
@@ -154,4 +207,5 @@ export default {
   transporter,
   verifyTransporter,
   sendMail,
+  getSenderAddress,
 };

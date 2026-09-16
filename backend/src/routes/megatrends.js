@@ -10,7 +10,7 @@ import SEOPage from '../models/SEOPage.js'
 import Inquiry from '../models/Inquiry.js'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import { sendMail } from '../utils/mailer.js'
-import { sendNotification, sendAutoResponse } from './inquiries.js'
+import { sendNotification, sendAutoResponse, getNotificationRecipients } from './inquiries.js'
 
 const router = Router()
 
@@ -42,7 +42,8 @@ const uniqueSlug = async (title, desired) => {
 }
 
 async function notifySubmission(sub) {
-  const to = process.env.NOTIFY_EMAIL || process.env.SMTP_USER || 'contact@bizwitresearch.com'
+  const recipients = getNotificationRecipients()
+  const to = recipients.length === 1 ? recipients[0] : recipients
   const subject = `[Bizwit] Whitepaper Request: ${sub.megatrendTitle}`
   const text = `Name: ${sub.name}\nEmail: ${sub.email}\nCompany: ${sub.company}\nRole: ${sub.role}\nMegatrend: ${sub.megatrendTitle}\nAt: ${sub.createdAt?.toISOString()}`
   await sendMail({
