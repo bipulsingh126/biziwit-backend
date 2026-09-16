@@ -467,17 +467,18 @@ export const ssrHandler = async (req, res, next) => {
         webPageSchema({ title: seoData.title, description: seoData.description, url: "/report-store" }),
         breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Report Store", url: "/report-store" }])
       );
-      if (reports.length) schemas.push(itemListSchema({ name: "Market Research Reports", url: "/report-store", items: reports.map(r => ({ title: r.title, slug: `report-store/${r.slug}` })) }));
+      if (reports.length) schemas.push(itemListSchema({ name: "Market Research Reports", url: "/report-store", items: reports.map(r => ({ title: r.title, slug: r.slug })) }));
 
     } else if (pageType === "report-detail") {
       const slug = segments[1];
       const report = await Report.findOne({ slug: { $in: [slug, slug.replace(/-/g, " ")] } }).lean();
       if (report) {
-        seoData = extractSeoFromContent(report, "report-store", slug);
+        // Canonical URL is /:slug — no /report-store/ prefix
+        seoData = extractSeoFromContent(report, "", report.slug || slug);
         appHtml = renderReportDetail(report);
         schemas.push(
-          productSchema({ title: report.title, description: report.metaDescription || report.summary, url: `/report-store/${report.slug}`, image: report.coverImage?.url, price: parseFloat(report.singleUserPrice) || report.price, currency: report.currency, category: report.category, reportCode: report.reportCode, numberOfPages: report.numberOfPages, datePublished: report.publishDate }),
-          breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Report Store", url: "/report-store" }, { name: report.title, url: `/report-store/${report.slug}` }])
+          productSchema({ title: report.title, description: report.metaDescription || report.summary, url: `/${report.slug}`, image: report.coverImage?.url, price: parseFloat(report.singleUserPrice) || report.price, currency: report.currency, category: report.category, reportCode: report.reportCode, numberOfPages: report.numberOfPages, datePublished: report.publishDate }),
+          breadcrumbSchema([{ name: "Home", url: "/" }, { name: "Report Store", url: "/report-store" }, { name: report.title, url: `/${report.slug}` }])
         );
       } else {
         const seoPage = await findSeoPage(normalizedPath, firstSegment);

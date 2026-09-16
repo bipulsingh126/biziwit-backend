@@ -39,13 +39,25 @@ export async function generateSitemap() {
 
   let urls = staticPages.map(p => urlEntry(p.path, now, p.freq, p.priority));
 
-  // Reports
+  // Reports — canonical URL is /:slug (no /report-store/ prefix)
+  const seenUrls = new Set(staticPages.map(p => p.path));
   try {
     const reports = await Report.find({ status: 'published' }).select('slug updatedAt').lean();
     reports.forEach(r => {
-      if (r.slug) urls.push(urlEntry(`/report-store/${r.slug}`, r.updatedAt, 'weekly', '0.8'));
+      if (!r.slug) return;
+      const cleanedSlug = r.slug
+        .replace(/^https?:\/\/[^/]+\/*/i, '')
+        .replace(/^report-store\//i, '')
+        .replace(/^reports?\//i, '')
+        .trim();
+      if (!cleanedSlug) return;
+      const urlPath = `/${cleanedSlug}`;
+      if (seenUrls.has(urlPath)) return;
+      seenUrls.add(urlPath);
+      urls.push(urlEntry(urlPath, r.updatedAt, 'weekly', '0.8'));
     });
   } catch (e) { console.error('Sitemap: Error fetching reports', e.message); }
+
 
   // Blogs
   try {
