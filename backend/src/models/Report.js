@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { slugifyReportUrl } from '../utils/slugify.js'
 
 const reportSchema = new mongoose.Schema({
   // Basic required fields
@@ -284,17 +285,11 @@ reportSchema.pre('save', function (next) {
     this.searchTitle = this.title.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  // Generate slug if it's empty or if title changed and we want to update slug
+  // Generate or normalize slug to ensure it's URL-safe without spaces
   if (!this.slug || (this.isModified('title') && !this.isModified('slug'))) {
-    if (this.title) {
-      this.slug = this.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-    } else {
-      // Fallback if no title
-      this.slug = `report-${Date.now()}`
-    }
+    this.slug = slugifyReportUrl(this.title) || `report-${Date.now()}`;
+  } else if (this.isModified('slug')) {
+    this.slug = slugifyReportUrl(this.slug, this.title) || `report-${Date.now()}`;
   }
 
   // Auto-generate report code if not provided

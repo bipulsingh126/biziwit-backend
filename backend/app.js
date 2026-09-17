@@ -74,29 +74,22 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3001',
   'https://admin.bizwitresearch.com',
+  'https://www.bizwitresearch.com',
   'https://bizwitresearch.com',
   'https://api.bizwitresearch.com',
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL
 ].filter(Boolean) // Remove undefined values
 
-// --- www to non-www redirect (production only) ---
-// IMPORTANT: This redirects FROM www TO non-www
-// If you need the opposite (non-www to www), swap the logic
+// --- non-www to www redirect (production only) ---
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     const host = req.headers.host || '';
 
-    // Redirect www.bizwitresearch.com → bizwitresearch.com
-    if (host.startsWith('www.')) {
-      const newHost = host.replace(/^www\./, '');
-      return res.redirect(301, `https://${newHost}${req.originalUrl}`);
+    // Redirect bizwitresearch.com → www.bizwitresearch.com (preserve subdomains like api, admin)
+    if (!host.startsWith('www.') && host === 'bizwitresearch.com') {
+      return res.redirect(301, `https://www.${host}${req.originalUrl}`);
     }
-
-    // If you need to redirect non-www → www instead, use this:
-    // if (!host.startsWith('www.') && host.includes('bizwitresearch.com')) {
-    //   return res.redirect(301, `https://www.${host}${req.originalUrl}`);
-    // }
 
     next();
   });
@@ -218,6 +211,7 @@ app.use(helmet({
         "https://www.google.com",
         "https://www.gstatic.com",
         "https://api.bizwitresearch.com",
+        "https://www.bizwitresearch.com",
         "https://bizwitresearch.com",
         "http://localhost:*",
         "https://*.stripe.com"
@@ -383,8 +377,9 @@ let sitemapCache = { xml: null, ts: 0 };
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const now = Date.now();
-    // Cache sitemap for 1 hour
-    if (sitemapCache.xml && (now - sitemapCache.ts) < 3600000) {
+    const bypassCache = Boolean(req.query.refresh || req.query.nocache);
+    // Cache sitemap for 1 hour (unless explicitly refreshed)
+    if (!bypassCache && sitemapCache.xml && (now - sitemapCache.ts) < 3600000) {
       res.type('application/xml');
       return res.send(sitemapCache.xml);
     }

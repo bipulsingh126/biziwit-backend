@@ -56,7 +56,7 @@ export function getFrontendDistPath() {
 }
 
 const API_ORIGIN = (process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.bizwitresearch.com").replace(/\/$/, "");
-const SITE_URL = "https://bizwitresearch.com";
+const SITE_URL = (process.env.SITE_URL || process.env.FRONTEND_URL || "https://www.bizwitresearch.com").replace(/\/+$/, "");
 
 export function isBotRequest(userAgent = "") {
   if (!userAgent || typeof userAgent !== "string") return false;
